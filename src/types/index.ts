@@ -10,7 +10,9 @@ export interface User {
   username: string;
   fullName: string | null;
   avatarUrl: string | null;
-  plan: 'free' | 'pro' | 'enterprise';
+  name?: string;
+  avatar?: string;
+  plan?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -3,7 +3,7 @@
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { mockApi } from '@/lib/mock-data';
+import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -13,23 +13,21 @@ import {
   ScanListParams,
   CreateReportRequest,
 } from '@/types';
-import { useRouter } from 'next/navigation';
 
 // ============ Auth Hooks ============
 export function useLogin() {
   const { login } = useAuthStore();
   const { toast } = useToast();
-  const router = useRouter();
 
   return useMutation({
-    mutationFn: (credentials: LoginCredentials) => mockApi.login(credentials.email, credentials.password),
+    mutationFn: (credentials: LoginCredentials) => api.login(credentials.email, credentials.password),
     onSuccess: (data) => {
       login(data.user, data.tokens);
       toast({
         title: 'Welcome back!',
         description: `Logged in as ${data.user.email}`,
       });
-      router.push('/');
+      window.location.hash = '#/';
     },
     onError: (error: Error) => {
       toast({
@@ -44,17 +42,16 @@ export function useLogin() {
 export function useRegister() {
   const { login } = useAuthStore();
   const { toast } = useToast();
-  const router = useRouter();
 
   return useMutation({
-    mutationFn: (credentials: RegisterCredentials) => mockApi.register(credentials),
+    mutationFn: (credentials: RegisterCredentials) => api.register(credentials),
     onSuccess: (data) => {
       login(data.user, data.tokens);
       toast({
         title: 'Account created!',
         description: 'Welcome to OSIG',
       });
-      router.push('/');
+      window.location.hash = '#/';
     },
     onError: (error: Error) => {
       toast({
@@ -69,7 +66,6 @@ export function useRegister() {
 export function useLogout() {
   const { logout } = useAuthStore();
   const { toast } = useToast();
-  const router = useRouter();
 
   return () => {
     logout();
@@ -77,7 +73,7 @@ export function useLogout() {
       title: 'Logged out',
       description: 'See you next time!',
     });
-    router.push('/login');
+    window.location.hash = '#/login';
   };
 }
 
@@ -86,7 +82,7 @@ export function useCurrentUser() {
 
   return useQuery({
     queryKey: ['currentUser'],
-    queryFn: () => mockApi.getCurrentUser(),
+    queryFn: () => api.getCurrentUser(),
     enabled: isAuthenticated && !user,
     initialData: user,
   });
@@ -96,14 +92,14 @@ export function useCurrentUser() {
 export function useScans(params?: ScanListParams) {
   return useQuery({
     queryKey: ['scans', params],
-    queryFn: () => mockApi.getScans(params),
+    queryFn: () => api.getScans(params),
   });
 }
 
 export function useScan(scanId: string) {
   return useQuery({
     queryKey: ['scan', scanId],
-    queryFn: () => mockApi.getScan(scanId),
+    queryFn: () => api.getScan(scanId),
     enabled: !!scanId,
   });
 }
@@ -111,7 +107,7 @@ export function useScan(scanId: string) {
 export function useScanDetails(scanId: string, options?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: ['scanDetails', scanId],
-    queryFn: () => mockApi.getScanDetails(scanId),
+    queryFn: () => api.getScanDetails(scanId),
     enabled: !!scanId,
     refetchInterval: options?.refetchInterval,
   });
@@ -120,17 +116,16 @@ export function useScanDetails(scanId: string, options?: { refetchInterval?: num
 export function useCreateScan() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const router = useRouter();
 
   return useMutation({
-    mutationFn: (data: CreateScanRequest) => mockApi.createScan(data),
-    onSuccess: (scan) => {
+    mutationFn: (data: CreateScanRequest) => api.createScan(data),
+    onSuccess: (scan, data) => {
       queryClient.invalidateQueries({ queryKey: ['scans'] });
       toast({
         title: 'Scan initiated',
         description: `Scanning ${data.targetValue}`,
       });
-      router.push(`/scan/${scan.id}`);
+      window.location.hash = `#/scan?id=${scan.id}`;
     },
     onError: (error: Error) => {
       toast({
@@ -146,7 +141,7 @@ export function useCreateScan() {
 export function useReports() {
   return useQuery({
     queryKey: ['reports'],
-    queryFn: () => mockApi.getReports(),
+    queryFn: () => api.getReports(),
   });
 }
 
@@ -155,7 +150,7 @@ export function useCreateReport() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: CreateReportRequest) => mockApi.createReport(data),
+    mutationFn: (data: CreateReportRequest) => api.createReport(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       toast({
@@ -177,7 +172,7 @@ export function useCreateReport() {
 export function useRelationshipGraph(scanId: string) {
   return useQuery({
     queryKey: ['graph', scanId],
-    queryFn: () => mockApi.getRelationshipGraph(scanId),
+    queryFn: () => api.getRelationshipGraph(scanId),
     enabled: !!scanId,
   });
 }

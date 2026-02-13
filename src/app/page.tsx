@@ -11,6 +11,7 @@ import { Providers } from '@/components/providers';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { ErrorFallback } from '@/components/ui/error-fallback';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { HomePage } from '@/features/home/home-page';
 import { LoginPage } from '@/features/auth/login-page';
 import { RegisterPage } from '@/features/auth/register-page';
 import { ProfilePage } from '@/features/auth/profile-page';
@@ -71,6 +72,11 @@ function AppContent() {
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
+  }
+
+  // Public home page
+  if (path === '/' && !isAuthenticated) {
+    return <HomePage />;
   }
 
   // Auth pages (no dashboard layout)
