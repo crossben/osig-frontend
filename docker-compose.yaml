@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 300M
+        reservations:
+          cpus: '0.5'
+          memory: 150M
+    restart: unless-stopped
