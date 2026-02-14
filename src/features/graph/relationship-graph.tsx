@@ -1,3 +1,4 @@
+// frontend/src/features/graph/relationship-graph.tsx
 // ============================================
 // Enhanced Relationship Graph Component
 // With detailed side panel for node inspection
@@ -5,7 +6,7 @@
 
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
   Node,
@@ -39,6 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GraphNode, RiskLevel } from '@/types';
 import { cn } from '@/lib/utils';
 
+// Node type icons
 const nodeTypeIcons = {
   email: EnvelopeIcon,
   username: UserIcon,
@@ -48,6 +50,7 @@ const nodeTypeIcons = {
   social: UserCircleIcon,
 };
 
+// Node type colors
 const nodeTypeColors = {
   email: 'bg-blue-500/10 border-blue-500/50 text-blue-600 dark:text-blue-400',
   username: 'bg-purple-500/10 border-purple-500/50 text-purple-600 dark:text-purple-400',
@@ -57,6 +60,7 @@ const nodeTypeColors = {
   social: 'bg-pink-500/10 border-pink-500/50 text-pink-600 dark:text-pink-400',
 };
 
+// Risk level border colors
 const riskBorderColors: Record<RiskLevel, string> = {
   low: 'border-green-500',
   medium: 'border-yellow-500',
@@ -64,6 +68,7 @@ const riskBorderColors: Record<RiskLevel, string> = {
   critical: 'border-red-500',
 };
 
+// Risk level badge colors
 const riskBadgeColors: Record<RiskLevel, string> = {
   low: 'bg-green-500/10 text-green-600 dark:text-green-400',
   medium: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
@@ -107,15 +112,16 @@ const nodeTypes = {
   custom: CustomNode,
 };
 
+// Interface for props
 interface RelationshipGraphProps {
   scanId: string;
 }
 
 export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
-  const { data: graphData, isLoading } = useRelationshipGraph(scanId);
+  const { data: graphData, isLoading, error } = useRelationshipGraph(scanId);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
 
-  // Convert graph data to React Flow format
+  // Initialize nodes and edges using useMemo
   const initialNodes: Node[] = useMemo(() => {
     if (!graphData?.nodes) return [];
 
@@ -124,7 +130,7 @@ export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
       type: 'custom',
       position: {
         x: (index % 3) * 200 + 100,
-        y: Math.floor(index / 3) * 120 + 50
+        y: Math.floor(index / 3) * 120 + 50,
       },
       data: {
         label: node.label,
@@ -156,7 +162,7 @@ export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // Update nodes/edges when data changes
-  useMemo(() => {
+  useEffect(() => {
     if (initialNodes.length > 0) {
       setNodes(initialNodes);
       setEdges(initialEdges);
@@ -167,12 +173,24 @@ export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
     setSelectedNode(node);
   }, []);
 
+  // Handle loading and error states
   if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center">
         <div className="space-y-4">
           <Skeleton className="h-32 w-64" />
           <Skeleton className="h-32 w-64" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-destructive">
+        <div className="text-center">
+          <p className="font-medium">Failed to load graph data</p>
+          <p className="text-sm">{error.message}</p>
         </div>
       </div>
     );
@@ -236,7 +254,7 @@ export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
                 <div>
                   <div className="text-xs font-medium text-muted-foreground mb-2">Type</div>
                   <Badge variant="outline" className="gap-1.5">
-                    {(() => {
+                    {((): React.ReactElement => {
                       const Icon = nodeTypeIcons[selectedNode.data.type as keyof typeof nodeTypeIcons] || UserIcon;
                       return <Icon className="h-3.5 w-3.5" />;
                     })()}

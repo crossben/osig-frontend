@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   keywords: ["OSINT", "intelligence", "security", "investigation", "open source"],
   authors: [{ name: "OSIG Team" }],
   icons: {
-    icon: "/logo.svg",
+    // icon: "/logo.svg",
   },
 };
 
