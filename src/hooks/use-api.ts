@@ -138,10 +138,10 @@ export function useCreateScan() {
 }
 
 // ============ Reports Hooks ============
-export function useReports() {
+export function useReports(page: number = 1, limit: number = 10) {
   return useQuery({
-    queryKey: ['reports'],
-    queryFn: () => api.getReports(),
+    queryKey: ['reports', page, limit],
+    queryFn: () => api.getReports(page, limit),
   });
 }
 

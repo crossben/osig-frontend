@@ -79,9 +79,9 @@ export const api = {
 
     // ============ Reports API ============
 
-    // Get list of reports
-    async getReports(): Promise<Report[]> {
-        return apiCall<Report[]>('GET', '/reports');
+    // Get list of reports (now matching backend pagination wrapper)
+    async getReports(page: number = 1, limit: number = 10): Promise<{ reports: Report[]; total: number }> {
+        return apiCall<{ reports: Report[]; total: number }>('GET', `/reports?page=${page}&page_size=${limit}`);
     },
 
     // Create new report

@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
 import { SkeletonTable } from '@/components/ui/skeleton-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -54,6 +53,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useReports, useCreateReport } from '@/hooks/use-api';
+import { api } from '@/lib/api';
 import { ReportStatus, ReportFormat } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -99,7 +99,8 @@ function formatFileSize(bytes: number): string {
 }
 
 export function ReportsPage() {
-  const { data: reports, isLoading } = useReports();
+  const { data, isLoading } = useReports();
+  const reports = data?.reports || [];
   const createReportMutation = useCreateReport();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newReport, setNewReport] = useState({
@@ -119,11 +120,19 @@ export function ReportsPage() {
     });
   };
 
-  const handleDownload = (report: { id: string; name: string; downloadUrl?: string }) => {
-    // In a real app, this would trigger a download
-    console.log('Downloading report:', report.id);
-    if (report.downloadUrl) {
-      window.open(report.downloadUrl, '_blank');
+  const handleDownload = async (report: { id: string; name: string; format: string }) => {
+    try {
+      const blob = await api.downloadReport(report.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report.name}.${report.format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Failed to download report', error);
     }
   };
 
