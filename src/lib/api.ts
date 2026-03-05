@@ -23,12 +23,28 @@ import type {
 export const api = {
     // Login user
     async login(email: string, password: string): Promise<AuthResponse> {
-        return apiCall<AuthResponse>('POST', '/auth/login', { email, password });
+        const res = await apiCall<any>('POST', '/auth/login', { email, password });
+        return {
+            user: res.user,
+            tokens: {
+                accessToken: res.accessToken,
+                refreshToken: '',
+                expiresIn: 3600
+            }
+        };
     },
 
     // Register new user
     async register(data: RegisterCredentials): Promise<AuthResponse> {
-        return apiCall<AuthResponse>('POST', '/auth/register', data);
+        const res = await apiCall<any>('POST', '/auth/register', data);
+        return {
+            user: res.user,
+            tokens: {
+                accessToken: res.accessToken,
+                refreshToken: '',
+                expiresIn: 3600
+            }
+        };
     },
 
     // Get current user
@@ -46,15 +62,22 @@ export const api = {
     // Get list of scans with optional filters
     async getScans(params?: ScanListParams): Promise<ScanListResponse> {
         const queryParams = new URLSearchParams();
-        if (params?.targetType) queryParams.append('targetType', params.targetType);
+        if (params?.targetType) queryParams.append('target_type', params.targetType);
         if (params?.status) queryParams.append('status', params.status);
-        if (params?.startDate) queryParams.append('startDate', params.startDate);
-        if (params?.endDate) queryParams.append('endDate', params.endDate);
+        if (params?.startDate) queryParams.append('start_date', params.startDate);
+        if (params?.endDate) queryParams.append('end_date', params.endDate);
         if (params?.page) queryParams.append('page', params.page.toString());
-        if (params?.limit) queryParams.append('limit', params.limit.toString());
+        if (params?.limit) queryParams.append('page_size', params.limit.toString());
 
         const query = queryParams.toString();
-        return apiCall<ScanListResponse>('GET', `/scans${query ? `?${query}` : ''}`);
+        const res = await apiCall<any>('GET', `/scans${query ? `?${query}` : ''}`);
+        return {
+            scans: res.scans,
+            total: res.total,
+            page: res.page,
+            limit: res.pageSize,
+            hasMore: res.page < res.totalPages
+        };
     },
 
     // Get single scan by ID
@@ -72,6 +95,11 @@ export const api = {
         return apiCall<Scan>('POST', '/scans', data);
     },
 
+    // Get scan quota status
+    async getQuotaStatus(): Promise<{ plan: string; dailyLimit: number; usedToday: number; remaining: number; hasQuota: boolean }> {
+        return apiCall('GET', '/scans/quota/status');
+    },
+
     // Cancel running scan
     async cancelScan(scanId: string): Promise<void> {
         return apiCall<void>('POST', `/scans/${scanId}/cancel`);
@@ -81,7 +109,8 @@ export const api = {
 
     // Get list of reports (now matching backend pagination wrapper)
     async getReports(page: number = 1, limit: number = 10): Promise<{ reports: Report[]; total: number }> {
-        return apiCall<{ reports: Report[]; total: number }>('GET', `/reports?page=${page}&page_size=${limit}`);
+        const res = await apiCall<any>('GET', `/reports?page=${page}&page_size=${limit}`);
+        return { reports: res.items, total: res.total };
     },
 
     // Create new report

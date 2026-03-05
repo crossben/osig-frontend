@@ -64,7 +64,7 @@ export interface CreateScanRequest {
   targetType: TargetType;
   targetValue: string;
   scanType: ScanType;
-  confirmLegitimate: boolean;
+  disclaimerAccepted: boolean;
   data?: Record<string, unknown>;
 }
 

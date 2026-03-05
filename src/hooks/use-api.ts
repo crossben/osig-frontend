@@ -104,7 +104,7 @@ export function useScan(scanId: string) {
   });
 }
 
-export function useScanDetails(scanId: string, options?: { refetchInterval?: number }) {
+export function useScanDetails(scanId: string, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ['scanDetails', scanId],
     queryFn: () => api.getScanDetails(scanId),
@@ -134,6 +134,14 @@ export function useCreateScan() {
         description: error.message,
       });
     },
+  });
+}
+
+export function useQuotaStatus() {
+  return useQuery({
+    queryKey: ['quotaStatus'],
+    queryFn: () => api.getQuotaStatus(),
+    refetchInterval: 30000, // refresh every 30s
   });
 }
 

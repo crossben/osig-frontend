@@ -31,23 +31,32 @@ export const useAuthStore = create<AuthState>()(
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
 
-      setTokens: (tokens) => set({ tokens }),
+      setTokens: (tokens) => {
+        if (tokens?.accessToken) localStorage.setItem('accessToken', tokens.accessToken);
+        set({ tokens });
+      },
 
       setLoading: (isLoading) => set({ isLoading }),
 
-      login: (user, tokens) => set({
-        user,
-        tokens,
-        isAuthenticated: true,
-        isLoading: false,
-      }),
+      login: (user, tokens) => {
+        if (tokens?.accessToken) localStorage.setItem('accessToken', tokens.accessToken);
+        set({
+          user,
+          tokens,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+      },
 
-      logout: () => set({
-        user: null,
-        tokens: null,
-        isAuthenticated: false,
-        isLoading: false,
-      }),
+      logout: () => {
+        localStorage.removeItem('accessToken');
+        set({
+          user: null,
+          tokens: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+      },
 
       updateProfile: (data) => set((state) => ({
         user: state.user ? { ...state.user, ...data } : null,

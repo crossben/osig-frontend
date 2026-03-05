@@ -4,9 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +15,6 @@ import { useLogin } from '@/hooks/use-api';
 import { useAuthStore } from '@/store';
 
 export function LoginPage() {
-  const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const loginMutation = useLogin();
   const [email, setEmail] = useState('');
@@ -25,8 +22,13 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
 
   // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.location.hash = '#/';
+    }
+  }, [isAuthenticated]);
+
   if (isAuthenticated) {
-    router.push('/');
     return null;
   }
 
@@ -94,12 +96,12 @@ export function LoginPage() {
                     Remember me
                   </Label>
                 </div>
-                <Link
-                  href="/forgot-password"
+                <a
+                  href="#/forgot-password"
                   className="text-sm text-primary hover:underline"
                 >
                   Forgot password?
-                </Link>
+                </a>
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
@@ -112,9 +114,9 @@ export function LoginPage() {
               </Button>
               <p className="text-sm text-center text-muted-foreground">
                 Don&apos;t have an account?{' '}
-                <Link href="/register" className="text-primary hover:underline font-medium">
+                <a href="#/register" className="text-primary hover:underline font-medium">
                   Create one
-                </Link>
+                </a>
               </p>
             </CardFooter>
           </form>

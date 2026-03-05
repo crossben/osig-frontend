@@ -5,8 +5,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   ArrowLeftIcon,
   ClockIcon,
@@ -125,13 +123,23 @@ function ResultCard({ result }: { result: { module: string; dataType: string; da
 }
 
 export function ScanDetailsPage() {
-  const params = useParams();
-  const scanId = params.scanId as string;
+  // Extract scanId from hash URL: #/scan?id=<uuid>
+  const hashParams = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.hash.split('?')[1] || '')
+    : new URLSearchParams();
+  const scanId = hashParams.get('id') || '';
   const [activeTab, setActiveTab] = useState('overview');
 
+  const [isPolling, setIsPolling] = useState(true);
   const { data: details, isLoading, error } = useScanDetails(scanId, {
-    refetchInterval: details?.scan?.status === 'running' || details?.scan?.status === 'pending' ? 3000 : false,
+    refetchInterval: isPolling ? 3000 : (false as const),
   });
+
+  useEffect(() => {
+    if (details?.scan?.status === 'completed' || details?.scan?.status === 'failed') {
+      setIsPolling(false);
+    }
+  }, [details?.scan?.status]);
 
   if (isLoading) {
     return (
@@ -154,9 +162,12 @@ export function ScanDetailsPage() {
         <ExclamationTriangleIcon className="h-12 w-12 text-destructive" />
         <h2 className="text-xl font-semibold">Failed to load scan details</h2>
         <p className="text-muted-foreground">The scan may have been deleted or an error occurred.</p>
-        <Button asChild>
-          <Link href="/history">Go to Scan History</Link>
-        </Button>
+        <button
+          onClick={() => { window.location.hash = '#/history'; }}
+          className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
+        >
+          Go to Scan History
+        </button>
       </div>
     );
   }
@@ -169,11 +180,12 @@ export function ScanDetailsPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/history">
-              <ArrowLeftIcon className="h-5 w-5" />
-            </Link>
-          </Button>
+          <button
+            onClick={() => { window.location.hash = '#/history'; }}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium hover:bg-accent h-10 w-10"
+          >
+            <ArrowLeftIcon className="h-5 w-5" />
+          </button>
           <div>
             <div className="flex items-center gap-2">
               <TargetIcon className="h-5 w-5 text-muted-foreground" />

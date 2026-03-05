@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useCreateScan } from '@/hooks/use-api';
+import { useCreateScan, useQuotaStatus } from '@/hooks/use-api';
 import { TargetType, ScanType } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -75,10 +75,11 @@ const scanTypes: { value: ScanType; label: string; icon: React.ComponentType<{ c
 
 export function NewScanPage() {
   const createScanMutation = useCreateScan();
+  const { data: quota } = useQuotaStatus();
   const [targetType, setTargetType] = useState<TargetType>('email');
   const [targetValue, setTargetValue] = useState('');
   const [scanType, setScanType] = useState<ScanType>('quick');
-  const [confirmLegitimate, setConfirmLegitimate] = useState(false);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const selectedTarget = targetTypes.find((t) => t.value === targetType);
@@ -114,8 +115,8 @@ export function NewScanPage() {
       }
     }
 
-    if (!confirmLegitimate) {
-      newErrors.confirmLegitimate = 'You must confirm you have a legitimate purpose';
+    if (!disclaimerAccepted) {
+      newErrors.disclaimerAccepted = 'You must confirm you have a legitimate purpose';
     }
 
     setErrors(newErrors);
@@ -131,7 +132,7 @@ export function NewScanPage() {
       targetType,
       targetValue: targetValue.trim(),
       scanType,
-      confirmLegitimate,
+      disclaimerAccepted,
     });
   };
 
@@ -145,6 +146,20 @@ export function NewScanPage() {
         </p>
       </div>
 
+      {/* Quota Status */}
+      {quota && (
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${quota.remaining <= 10
+            ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400'
+            : 'border-border bg-muted/50 text-muted-foreground'
+          }`}>
+          <span>
+            <span className="font-semibold text-foreground">{quota.remaining}</span> of{' '}
+            <span className="font-semibold text-foreground">{quota.dailyLimit}</span> scans remaining today
+          </span>
+          <span className="text-xs">{quota.usedToday} used</span>
+        </div>
+      )}
+
       {/* Legal Notice */}
       <Alert>
         <ExclamationTriangleIcon className="h-4 w-4" />
@@ -153,6 +168,17 @@ export function NewScanPage() {
           OSIG uses only public and legally accessible information. Ensure you have proper authorization before scanning targets you do not own.
         </AlertDescription>
       </Alert>
+
+      {/* Scan API Error */}
+      {createScanMutation.isError && (
+        <Alert variant="destructive">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle>Scan Failed</AlertTitle>
+          <AlertDescription>
+            {(createScanMutation.error as Error)?.message || 'Failed to start scan. Please try again.'}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Scan Form */}
       <form onSubmit={handleSubmit}>
@@ -267,19 +293,19 @@ export function NewScanPage() {
             <div className="flex items-start space-x-3 rounded-lg border border-border p-4">
               <Checkbox
                 id="confirm"
-                checked={confirmLegitimate}
+                checked={disclaimerAccepted}
                 onCheckedChange={(checked) => {
-                  setConfirmLegitimate(checked as boolean);
-                  if (errors.confirmLegitimate) setErrors({ ...errors, confirmLegitimate: '' });
+                  setDisclaimerAccepted(checked as boolean);
+                  if (errors.disclaimerAccepted) setErrors({ ...errors, disclaimerAccepted: '' });
                 }}
-                className={cn(errors.confirmLegitimate && 'border-destructive')}
+                className={cn(errors.disclaimerAccepted && 'border-destructive')}
               />
               <div className="space-y-1">
                 <Label htmlFor="confirm" className="text-sm font-medium cursor-pointer leading-tight">
                   I confirm I have a legitimate purpose and understand only public info is used
                 </Label>
-                {errors.confirmLegitimate && (
-                  <p className="text-sm text-destructive">{errors.confirmLegitimate}</p>
+                {errors.disclaimerAccepted && (
+                  <p className="text-sm text-destructive">{errors.disclaimerAccepted}</p>
                 )}
               </div>
             </div>

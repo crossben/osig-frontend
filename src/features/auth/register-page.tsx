@@ -4,9 +4,7 @@
 
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,7 +15,6 @@ import { useRegister } from '@/hooks/use-api';
 import { useAuthStore } from '@/store';
 
 export function RegisterPage() {
-  const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const registerMutation = useRegister();
   const [formData, setFormData] = useState({
@@ -31,8 +28,13 @@ export function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      window.location.hash = '#/';
+    }
+  }, [isAuthenticated]);
+
   if (isAuthenticated) {
-    router.push('/');
     return null;
   }
 
@@ -211,9 +213,9 @@ export function RegisterPage() {
               </Button>
               <p className="text-sm text-center text-muted-foreground">
                 Already have an account?{' '}
-                <Link href="/login" className="text-primary hover:underline font-medium">
+                <a href="#/login" className="text-primary hover:underline font-medium">
                   Sign in
-                </Link>
+                </a>
               </p>
             </CardFooter>
           </form>

@@ -69,23 +69,49 @@ const createApiClient = (): AxiosInstance => {
 
 export const apiClient = createApiClient();
 
+// Helper to convert snake_case to camelCase
+function toCamel(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(toCamel);
+  return Object.keys(obj).reduce((acc, key) => {
+    const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+    acc[camelKey] = toCamel(obj[key]);
+    return acc;
+  }, {} as any);
+}
+
+// Helper to convert camelCase to snake_case
+function toSnake(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(toSnake);
+  return Object.keys(obj).reduce((acc, key) => {
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    acc[snakeKey] = toSnake(obj[key]);
+    return acc;
+  }, {} as any);
+}
+
 // Helper function for API calls with type safety
 export async function apiCall<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   url: string,
   data?: unknown
 ): Promise<T> {
-  const response = await apiClient.request<ApiResponse<T>>({
-    method,
-    url,
-    data,
-  });
-
-  if (!response.data.success || !response.data.data) {
-    throw new Error(response.data.error?.message || 'API request failed');
+  try {
+    const response = await apiClient.request<T>({
+      method,
+      url,
+      data: data ? toSnake(data) : undefined,
+    });
+    return toCamel(response.data);
+  } catch (error: any) {
+    if (error.response && error.response.data && error.response.data.detail) {
+      const detail = error.response.data.detail;
+      const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      throw new Error(message);
+    }
+    throw error;
   }
-
-  return response.data.data;
 }
 
 export default apiClient;
