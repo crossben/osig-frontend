@@ -263,9 +263,9 @@ export function NewScanPage() {
                 className="grid grid-cols-1 md:grid-cols-2 gap-4"
               >
                 {scanTypes.map((type) => (
-                  <div
+                  <Label
                     key={type.value}
-                    onClick={() => setScanType(type.value as ScanType)}
+                    htmlFor={`scanType-${type.value}`}
                     className={cn(
                       'relative flex items-start gap-3 rounded-lg border-2 p-4 cursor-pointer transition-all select-none',
                       scanType === type.value
@@ -273,19 +273,21 @@ export function NewScanPage() {
                         : 'border-border hover:border-primary/50'
                     )}
                   >
-                    <RadioGroupItem value={type.value} id={type.value} className="sr-only" />
+                    <RadioGroupItem value={type.value} id={`scanType-${type.value}`} className="sr-only" />
                     <type.icon className={cn(
                       'h-5 w-5 mt-0.5',
                       scanType === type.value ? 'text-primary' : 'text-muted-foreground'
                     )} />
                     <div className="flex-1">
-                      <Label htmlFor={type.value} className="font-medium cursor-pointer">
+                      <div className="font-medium">
                         {type.label}
-                      </Label>
-                      <p className="text-sm text-muted-foreground">{type.description}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{type.timeEstimate}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground font-normal">{type.description}</p>
+                      <div className="mt-2 text-xs font-medium text-muted-foreground bg-muted w-fit px-2 py-0.5 rounded-md">
+                        {type.timeEstimate}
+                      </div>
                     </div>
-                  </div>
+                  </Label>
                 ))}
               </RadioGroup>
             </div>
