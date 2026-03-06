@@ -149,8 +149,8 @@ export function NewScanPage() {
       {/* Quota Status */}
       {quota && (
         <div className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${quota.remaining <= 10
-            ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400'
-            : 'border-border bg-muted/50 text-muted-foreground'
+          ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400'
+          : 'border-border bg-muted/50 text-muted-foreground'
           }`}>
           <span>
             <span className="font-semibold text-foreground">{quota.remaining}</span> of{' '}
@@ -265,8 +265,9 @@ export function NewScanPage() {
                 {scanTypes.map((type) => (
                   <div
                     key={type.value}
+                    onClick={() => setScanType(type.value as ScanType)}
                     className={cn(
-                      'relative flex items-start gap-3 rounded-lg border-2 p-4 cursor-pointer transition-all',
+                      'relative flex items-start gap-3 rounded-lg border-2 p-4 cursor-pointer transition-all select-none',
                       scanType === type.value
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'

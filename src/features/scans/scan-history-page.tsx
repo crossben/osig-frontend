@@ -5,7 +5,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+
 import {
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -116,11 +116,9 @@ export function ScanHistoryPage() {
             View and manage your previous scans
           </p>
         </div>
-        <Button asChild>
-          <Link href="/">
-            <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
-            New Scan
-          </Link>
+        <Button onClick={() => { window.location.hash = '#/new-scan'; }}>
+          <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
+          New Scan
         </Button>
       </div>
 
@@ -210,8 +208,8 @@ export function ScanHistoryPage() {
                   ? 'Try adjusting your filters'
                   : 'Start your first scan to see it here'}
               </p>
-              <Button className="mt-4" asChild>
-                <Link href="/">New Scan</Link>
+              <Button className="mt-4" onClick={() => { window.location.hash = '#/new-scan'; }}>
+                New Scan
               </Button>
             </div>
           ) : (
@@ -268,11 +266,12 @@ export function ScanHistoryPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/scan/${scan.id}`} className="flex items-center">
-                              <EyeIcon className="h-4 w-4 mr-2" />
-                              View Details
-                            </Link>
+                          <DropdownMenuItem
+                            className="flex items-center cursor-pointer"
+                            onClick={() => { window.location.hash = `#/scan?id=${scan.id}`; }}
+                          >
+                            <EyeIcon className="h-4 w-4 mr-2" />
+                            View Details
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive">
                             <TrashIcon className="h-4 w-4 mr-2" />

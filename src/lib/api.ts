@@ -107,10 +107,10 @@ export const api = {
 
     // ============ Reports API ============
 
-    // Get list of reports (now matching backend pagination wrapper)
+    // Get list of reports (matches backend ReportListResponse shape)
     async getReports(page: number = 1, limit: number = 10): Promise<{ reports: Report[]; total: number }> {
         const res = await apiCall<any>('GET', `/reports?page=${page}&page_size=${limit}`);
-        return { reports: res.items, total: res.total };
+        return { reports: res.reports || [], total: res.total || 0 };
     },
 
     // Create new report
@@ -118,12 +118,13 @@ export const api = {
         return apiCall<Report>('POST', '/reports', data);
     },
 
-    // Download report file
+    // Download report file — returns a Blob
     async downloadReport(reportId: string): Promise<Blob> {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/reports/${reportId}/download`, {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-            },
+        const { env } = await import('@/lib/env');
+        const { useAuthStore } = await import('@/store/auth-store');
+        const token = useAuthStore.getState().tokens?.accessToken ?? '';
+        const response = await fetch(`${env.apiUrl}/reports/${reportId}/download`, {
+            headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) throw new Error('Failed to download report');
         return response.blob();
