@@ -23,6 +23,7 @@ import {
   MapPinIcon,
   ShieldExclamationIcon,
   ServerIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -115,19 +116,33 @@ function DetailedResultCard({ result }: { result: any }) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-red-500 font-medium">
             <ShieldExclamationIcon className="h-4 w-4" />
-            <span>Data Breach Found: {data.name}</span>
+            <span>Data Breach Detected</span>
           </div>
-          <p className="text-xs text-muted-foreground">{data.description}</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="p-2 border rounded bg-muted/30">
-              <span className="block text-muted-foreground">Date:</span>
-              <span>{data.breach_date}</span>
+          {data.leaks_found ? (
+            // h8mail leak format
+            <div>
+              <p className="text-sm">Found <span className="font-bold">{data.leaks_found}</span> raw leak signals (h8mail).</p>
+              <div className="mt-2 text-xs font-mono bg-red-500/5 p-2 rounded border border-red-500/20 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                {JSON.stringify(data.raw_findings, null, 2)}
+              </div>
             </div>
-            <div className="p-2 border rounded bg-muted/30">
-              <span className="block text-muted-foreground">Exposed Data:</span>
-              <span>{Array.isArray(data.data_classes) ? data.data_classes.join(', ') : 'Unknown'}</span>
+          ) : (
+            // standard HIBP format
+            <div>
+              <p className="text-sm font-bold">{data.name}</p>
+              <p className="text-xs text-muted-foreground">{data.domain} • {data.breach_date}</p>
+              <p className="text-xs mt-1" dangerouslySetInnerHTML={{ __html: data.description }} />
+              {data.data_classes && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {data.data_classes.map((cls: string, idx: number) => (
+                    <Badge key={idx} variant="outline" className="text-[10px] text-red-500 border-red-200 bg-red-50">
+                      {cls}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       );
     }
@@ -196,6 +211,131 @@ function DetailedResultCard({ result }: { result: any }) {
             {data.title}
           </a>
           <p className="text-xs text-muted-foreground line-clamp-2">{data.snippet}</p>
+        </div>
+      );
+    }
+
+    if (dataType === 'domain_parts') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-primary font-medium">
+            <GlobeAltIcon className="h-4 w-4" />
+            <span>Domain Structure</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground w-full truncate">Subdomain:</span>
+              <span className="font-mono">{data.subdomain || '-'}</span>
+            </div>
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground w-full truncate">Domain:</span>
+              <span className="font-mono">{data.domain || '-'}</span>
+            </div>
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground w-full truncate">Suffix:</span>
+              <span className="font-mono">{data.suffix || '-'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (dataType === 'webpage_info') {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-cyan-500 font-medium">
+              <DocumentTextIcon className="h-4 w-4" />
+              <span>Homepage Analysis (AI Powered)</span>
+            </div>
+            {data.title && (
+              <p className="text-sm border-l-2 border-cyan-500 pl-2">{data.title}</p>
+            )}
+            {data.meta_description && (
+              <p className="text-xs text-muted-foreground line-clamp-2">{data.meta_description}</p>
+            )}
+            {data.visible_emails && data.visible_emails.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="text-xs text-muted-foreground w-full block mb-1">Found Emails:</span>
+                {data.visible_emails.map((email: string, idx: number) => (
+                  <Badge key={idx} variant="outline" className="text-[10px] font-mono">{email}</Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Phishing Analysis */}
+            {data.phishing_analysis && (
+              <div className={`mt-3 p-2 rounded border ${data.phishing_analysis.potential_risk ? 'bg-red-500/10 border-red-500/50 text-red-600' : 'bg-green-500/10 border-green-500/50 text-green-600'}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldExclamationIcon className="h-4 w-4" />
+                  <span className="text-xs font-bold">Impersonation / Phishing Risk (RapidFuzz)</span>
+                </div>
+                <div className="text-[10px]">
+                  Base Domain: <span className="font-mono bg-muted/50 px-1">{data.phishing_analysis.base_domain}</span><br />
+                  Highest Brand Match: <span className="font-bold">{data.phishing_analysis.highest_org_match}%</span>
+                  {data.phishing_analysis.potential_risk && (
+                    <p className="mt-1 text-red-500 font-bold">WARNING: Claimed organization does not strongly match the typed domain name. Potential impersonation.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* NLP Entities */}
+          {data.nlp_entities && (
+            <div className="space-y-2 border-t pt-2">
+              <div className="text-xs text-muted-foreground font-medium mb-1">Extracted Entities (spaCy)</div>
+
+              {data.nlp_entities.organizations && data.nlp_entities.organizations.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  <span className="text-[10px] w-12 pt-1">Orgs:</span>
+                  {data.nlp_entities.organizations.map((org: string, idx: number) => (
+                    <Badge key={`org-${idx}`} variant="secondary" className="text-[9px] bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">{org}</Badge>
+                  ))}
+                </div>
+              )}
+
+              {data.nlp_entities.people && data.nlp_entities.people.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <span className="text-[10px] w-12 pt-1">People:</span>
+                  {data.nlp_entities.people.map((person: string, idx: number) => (
+                    <Badge key={`person-${idx}`} variant="secondary" className="text-[9px] bg-amber-500/10 text-amber-500 hover:bg-amber-500/20">{person}</Badge>
+                  ))}
+                </div>
+              )}
+
+              {data.nlp_entities.locations && data.nlp_entities.locations.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <span className="text-[10px] w-12 pt-1">Places:</span>
+                  {data.nlp_entities.locations.map((loc: string, idx: number) => (
+                    <Badge key={`loc-${idx}`} variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20">{loc}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (dataType === 'open_ports') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-purple-500 font-medium">
+            <ServerIcon className="h-4 w-4" />
+            <span>Open Ports ({data.total_open})</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {data.open_ports.map((portInfo: any, idx: number) => (
+              <div key={idx} className="flex pb-0 mb-0 flex-col border rounded p-2 bg-muted/20 text-xs min-w-[100px]">
+                <span className="font-bold text-lg">{portInfo.port}/{portInfo.protocol}</span>
+                <span className="text-muted-foreground">{portInfo.name}</span>
+                {portInfo.product && (
+                  <span className="text-[10px] text-muted-foreground/80 truncate">{portInfo.product}</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
