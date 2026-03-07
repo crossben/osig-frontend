@@ -20,6 +20,9 @@ import {
   PhoneIcon,
   ArrowDownTrayIcon,
   ShareIcon,
+  MapPinIcon,
+  ShieldExclamationIcon,
+  ServerIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -103,21 +106,122 @@ function ModuleCard({ module }: { module: { name: string; displayName: string; s
   );
 }
 
-function ResultCard({ result }: { result: { module: string; dataType: string; data: Record<string, unknown>; source: string; confidence: number } }) {
+function DetailedResultCard({ result }: { result: any }) {
+  const renderData = () => {
+    const { dataType, data } = result;
+
+    if (dataType === 'breach') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-red-500 font-medium">
+            <ShieldExclamationIcon className="h-4 w-4" />
+            <span>Data Breach Found: {data.name}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">{data.description}</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground">Date:</span>
+              <span>{data.breach_date}</span>
+            </div>
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground">Exposed Data:</span>
+              <span>{Array.isArray(data.data_classes) ? data.data_classes.join(', ') : 'Unknown'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (dataType === 'ip_intel') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-blue-500 font-medium">
+            <MapPinIcon className="h-4 w-4" />
+            <span>Location: {data.geo?.city}, {data.geo?.country || data.country_code}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2 border rounded bg-muted/30 col-span-2">
+              <span className="block text-muted-foreground">Network:</span>
+              <span>{data.network_name} ({data.asn}) - {data.cidr}</span>
+            </div>
+            {data.geo?.lat && (
+              <div className="p-2 border rounded bg-muted/30">
+                <span className="block text-muted-foreground">Coordinates:</span>
+                <span>{data.geo.lat}, {data.geo.lon}</span>
+              </div>
+            )}
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground">ISP:</span>
+              <span>{data.geo?.isp || 'Unknown'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (dataType === 'phone_info') {
+      return (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-green-500 font-medium">
+            <PhoneIcon className="h-4 w-4" />
+            <span>{data.international_format} ({data.number_type})</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground">Carrier:</span>
+              <span>{data.carrier}</span>
+            </div>
+            <div className="p-2 border rounded bg-muted/30">
+              <span className="block text-muted-foreground">Location:</span>
+              <span>{data.location}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (dataType === 'account_existence') {
+      return (
+        <div className="flex items-center gap-3 p-2 border rounded bg-muted/30">
+          <CheckCircleIcon className="h-5 w-5 text-green-500" />
+          <span className="font-medium text-sm">Registered on {data.platform}</span>
+        </div>
+      );
+    }
+
+    if (dataType === 'dork_result') {
+      return (
+        <div className="space-y-1">
+          <a href={data.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-500 hover:underline">
+            {data.title}
+          </a>
+          <p className="text-xs text-muted-foreground line-clamp-2">{data.snippet}</p>
+        </div>
+      );
+    }
+
+    // Fallback for raw JSON
+    return (
+      <pre className="text-[10px] bg-muted/50 p-2 rounded overflow-x-auto">
+        {JSON.stringify(data, null, 2)}
+      </pre>
+    );
+  };
+
   return (
-    <div className="rounded-lg border p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <Badge variant="outline" className="text-xs">{result.module}</Badge>
-        <span className="text-xs text-muted-foreground">
-          {Math.round(result.confidence * 100)}% confidence
+    <div className="rounded-lg border p-4 space-y-3">
+      <div className="flex items-center justify-between border-b pb-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">{result.source}</Badge>
+          <span className="text-[10px] text-muted-foreground">{result.dataType}</span>
+        </div>
+        <span className="text-[10px] font-mono text-muted-foreground">
+          {Math.round(result.confidence * 100)}% Match
         </span>
       </div>
-      <div className="text-sm">
-        <pre className="text-xs bg-muted/50 p-2 rounded overflow-x-auto">
-          {JSON.stringify(result.data, null, 2)}
-        </pre>
+      <div className="pt-1">
+        {renderData()}
       </div>
-      <p className="text-xs text-muted-foreground">Source: {result.source}</p>
     </div>
   );
 }
@@ -360,7 +464,7 @@ export function ScanDetailsPage() {
               <ScrollArea className="h-[600px] pr-4">
                 <div className="space-y-4">
                   {results.map((result) => (
-                    <ResultCard key={result.id} result={result} />
+                    <DetailedResultCard key={result.id} result={result} />
                   ))}
                   {results.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
