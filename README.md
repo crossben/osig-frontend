@@ -1,5 +1,7 @@
 # 🛡️ OSIG Frontend
 
+BACKEND : https://github.com/crossben/osig-backend
+
 **Open Source Intelligence Gathering** - A modern, production-ready web application for ethical OSINT investigations.
 
 ## 📖 Overview
