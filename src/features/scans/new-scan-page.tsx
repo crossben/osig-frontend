@@ -10,65 +10,81 @@ import {
   UserIcon,
   GlobeAltIcon,
   PhoneIcon,
+  CpuChipIcon,
+  BuildingOffice2Icon,
   ExclamationTriangleIcon,
   BoltIcon,
   CircleStackIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useCreateScan, useQuotaStatus } from '@/hooks/use-api';
 import { TargetType, ScanType } from '@/types';
 import { cn } from '@/lib/utils';
+import { sourcesFor } from '@/lib/scan-sources';
+import { PageHeader } from '@/components/layout/page-header';
 
 const targetTypes: { value: TargetType; label: string; icon: React.ComponentType<{ className?: string }>; placeholder: string; description: string }[] = [
   {
     value: 'email',
-    label: 'Email Address',
+    label: 'Email address',
     icon: EnvelopeIcon,
-    placeholder: 'example@domain.com',
-    description: 'Search for breaches, social profiles, and more',
+    placeholder: 'name@example.com',
+    description: 'Accounts, breach exposure and reputation tied to the address.',
   },
   {
     value: 'username',
     label: 'Username',
     icon: UserIcon,
-    placeholder: 'johndoe123',
-    description: 'Find social media profiles and online accounts',
+    placeholder: 'handle',
+    description: 'Public profiles that use this exact handle.',
   },
   {
     value: 'domain',
     label: 'Domain',
     icon: GlobeAltIcon,
     placeholder: 'example.com',
-    description: 'Analyze domain records, subdomains, and infrastructure',
+    description: 'Ownership, DNS, subdomains and hosting.',
   },
   {
     value: 'phone',
-    label: 'Phone Number',
+    label: 'Phone number',
     icon: PhoneIcon,
-    placeholder: '+1-555-123-4567',
-    description: 'Lookup phone number information and associations',
+    placeholder: '+1 202 555 0143',
+    description: 'Include the country code, e.g. +221 or +1.',
+  },
+  {
+    value: 'ip',
+    label: 'IP address',
+    icon: CpuChipIcon,
+    placeholder: '93.184.215.14',
+    description: 'Owner, location, open ports, known CVEs and scanning activity.',
+  },
+  {
+    value: 'organization',
+    label: 'Organization',
+    icon: BuildingOffice2Icon,
+    placeholder: 'Python Software Foundation',
+    description: 'Public company facts, legal entities, official accounts and website.',
   },
 ];
 
 const scanTypes: { value: ScanType; label: string; icon: React.ComponentType<{ className?: string }>; description: string; timeEstimate: string }[] = [
   {
     value: 'quick',
-    label: 'Quick Scan',
+    label: 'Quick',
     icon: BoltIcon,
-    description: 'Fast overview of key sources',
+    description: 'The core sources for a fast first look.',
     timeEstimate: '~2 minutes',
   },
   {
     value: 'deep',
-    label: 'Deep Scan',
+    label: 'Deep',
     icon: CircleStackIcon,
-    description: 'Comprehensive analysis of all available sources',
+    description: 'Every source, including the slower ones.',
     timeEstimate: '~10 minutes',
   },
 ];
@@ -88,35 +104,45 @@ export function NewScanPage() {
     const newErrors: Record<string, string> = {};
 
     if (!targetValue.trim()) {
-      newErrors.targetValue = 'Please enter a target value';
+      newErrors.targetValue = 'Enter a target to scan.';
     } else {
       // Basic validation based on target type
       switch (targetType) {
         case 'email':
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetValue)) {
-            newErrors.targetValue = 'Please enter a valid email address';
+            newErrors.targetValue = 'That doesn\'t look like an email address.';
           }
           break;
         case 'domain':
           if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z]{2,})+$/.test(targetValue)) {
-            newErrors.targetValue = 'Please enter a valid domain';
+            newErrors.targetValue = 'Enter a domain like example.com, without https://.';
           }
           break;
         case 'phone':
           if (!/^\+?[\d\s-()]{7,}$/.test(targetValue)) {
-            newErrors.targetValue = 'Please enter a valid phone number';
+            newErrors.targetValue = 'Enter digits with the country code, e.g. +1 202 555 0143.';
+          }
+          break;
+        case 'ip':
+          if (!/^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]*$/.test(targetValue.trim())) {
+            newErrors.targetValue = 'Enter an IPv4 or IPv6 address.';
+          }
+          break;
+        case 'organization':
+          if (targetValue.trim().length < 2) {
+            newErrors.targetValue = 'Enter the organization\'s name.';
           }
           break;
         case 'username':
           if (targetValue.length < 2) {
-            newErrors.targetValue = 'Username must be at least 2 characters';
+            newErrors.targetValue = 'Handles need at least 2 characters.';
           }
           break;
       }
     }
 
     if (!disclaimerAccepted) {
-      newErrors.disclaimerAccepted = 'You must confirm you have a legitimate purpose';
+      newErrors.disclaimerAccepted = 'Confirm your reason before starting the scan.';
     }
 
     setErrors(newErrors);
@@ -136,164 +162,122 @@ export function NewScanPage() {
     });
   };
 
+  const { all: allSources, active: activeSources } = sourcesFor(targetType, scanType);
+  const noQuota = quota ? quota.remaining <= 0 : false;
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">New Scan</h1>
-        <p className="text-muted-foreground">
-          Start a new intelligence gathering scan
-        </p>
-      </div>
+    <div className="w-full">
+      <PageHeader
+        title="New scan"
+        description="Pick a target and OSIG traces it across public sources. Results appear on the scan page as each source answers."
+      />
 
-      {/* Quota Status */}
-      {quota && (
-        <div className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${quota.remaining <= 10
-          ? 'border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400'
-          : 'border-border bg-muted/50 text-muted-foreground'
-          }`}>
-          <span>
-            <span className="font-semibold text-foreground">{quota.remaining}</span> of{' '}
-            <span className="font-semibold text-foreground">{quota.dailyLimit}</span> scans remaining today
-          </span>
-          <span className="text-xs">{quota.usedToday} used</span>
-        </div>
-      )}
-
-      {/* Legal Notice */}
-      <Alert>
-        <ExclamationTriangleIcon className="h-4 w-4" />
-        <AlertTitle>Important Notice</AlertTitle>
-        <AlertDescription>
-          OSIG uses only public and legally accessible information. Ensure you have proper authorization before scanning targets you do not own.
-        </AlertDescription>
-      </Alert>
-
-      {/* Scan API Error */}
       {createScanMutation.isError && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="mb-6">
           <ExclamationTriangleIcon className="h-4 w-4" />
-          <AlertTitle>Scan Failed</AlertTitle>
+          <AlertTitle>The scan didn't start</AlertTitle>
           <AlertDescription>
-            {(createScanMutation.error as Error)?.message || 'Failed to start scan. Please try again.'}
+            {(createScanMutation.error as Error)?.message || 'Try again in a moment.'}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Scan Form */}
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Configure Scan</CardTitle>
-            <CardDescription>
-              Select the target type and enter the value to scan
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Target Type Selection */}
-            <div className="space-y-3">
-              <Label>Target Type</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {targetTypes.map((type) => (
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        {/* ── Form ─────────────────────────────────────── */}
+        <form onSubmit={handleSubmit} className="rounded-2xl border bg-card p-6 md:p-8" noValidate>
+          {/* Target type */}
+          <fieldset>
+            <legend className="text-sm font-medium">What are you looking into?</legend>
+            <div role="radiogroup" className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-6">
+              {targetTypes.map((type) => {
+                const selected = targetType === type.value;
+                return (
                   <button
                     key={type.value}
                     type="button"
+                    role="radio"
+                    aria-checked={selected}
                     onClick={() => {
                       setTargetType(type.value);
                       setTargetValue('');
                       setErrors({});
                     }}
                     className={cn(
-                      'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
-                      targetType === type.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
+                      'flex items-center gap-2.5 rounded-xl border px-4 py-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace',
+                      selected
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'bg-background hover:border-trace/60'
                     )}
                   >
-                    <type.icon className={cn(
-                      'h-6 w-6',
-                      targetType === type.value ? 'text-primary' : 'text-muted-foreground'
-                    )} />
-                    <span className={cn(
-                      'text-sm font-medium',
-                      targetType === type.value ? 'text-primary' : 'text-foreground'
-                    )}>
-                      {type.label}
-                    </span>
+                    <type.icon className="h-5 w-5 shrink-0" />
+                    <span className="font-medium">{type.label}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
+          </fieldset>
 
-            {/* Target Value Input */}
-            <div className="space-y-2">
-              <Label htmlFor="targetValue">
-                {selectedTarget?.label} <span className="text-destructive">*</span>
-              </Label>
-              <div className="flex items-center gap-2">
-                {selectedTarget && (
-                  <selectedTarget.icon className="h-5 w-5 text-muted-foreground" />
-                )}
-                <Input
-                  id="targetValue"
-                  type={targetType === 'email' ? 'email' : 'text'}
-                  placeholder={selectedTarget?.placeholder}
-                  value={targetValue}
-                  onChange={(e) => {
-                    setTargetValue(e.target.value);
-                    if (errors.targetValue) setErrors({ ...errors, targetValue: '' });
-                  }}
-                  className={cn(errors.targetValue && 'border-destructive')}
-                />
-              </div>
-              {errors.targetValue && (
-                <p className="text-sm text-destructive">{errors.targetValue}</p>
+          {/* Target value — the focal field */}
+          <div className="mt-8">
+            <Label htmlFor="targetValue" className="text-sm font-medium">
+              {selectedTarget?.label}
+            </Label>
+            <input
+              id="targetValue"
+              type={targetType === 'email' ? 'email' : 'text'}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder={selectedTarget?.placeholder}
+              value={targetValue}
+              aria-invalid={!!errors.targetValue}
+              aria-describedby="targetValue-help"
+              onChange={(e) => {
+                setTargetValue(e.target.value);
+                if (errors.targetValue) setErrors({ ...errors, targetValue: '' });
+              }}
+              className={cn(
+                'mt-2 w-full border-0 border-b-2 bg-transparent px-0 pb-3 pt-1 font-mono text-2xl outline-none transition-colors placeholder:text-muted-foreground/50 md:text-3xl',
+                errors.targetValue ? 'border-destructive' : 'border-border focus:border-trace'
               )}
-              {selectedTarget && (
-                <p className="text-sm text-muted-foreground">{selectedTarget.description}</p>
-              )}
-            </div>
+            />
+            <p id="targetValue-help" className={cn('mt-2 text-sm', errors.targetValue ? 'text-destructive' : 'text-muted-foreground')}>
+              {errors.targetValue || selectedTarget?.description}
+            </p>
+          </div>
 
-            {/* Scan Type Selection */}
-            <div className="space-y-3">
-              <Label>Scan Type</Label>
-              <RadioGroup
-                value={scanType}
-                onValueChange={(value) => setScanType(value as ScanType)}
-                className="grid grid-cols-1 md:grid-cols-2 gap-4"
-              >
-                {scanTypes.map((type) => (
-                  <Label
-                    key={type.value}
-                    htmlFor={`scanType-${type.value}`}
-                    className={cn(
-                      'relative flex items-start gap-3 rounded-lg border-2 p-4 cursor-pointer transition-all select-none',
-                      scanType === type.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    )}
-                  >
-                    <RadioGroupItem value={type.value} id={`scanType-${type.value}`} className="sr-only" />
-                    <type.icon className={cn(
-                      'h-5 w-5 mt-0.5',
-                      scanType === type.value ? 'text-primary' : 'text-muted-foreground'
-                    )} />
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {type.label}
-                      </div>
-                      <p className="text-sm text-muted-foreground font-normal">{type.description}</p>
-                      <div className="mt-2 text-xs font-medium text-muted-foreground bg-muted w-fit px-2 py-0.5 rounded-md">
-                        {type.timeEstimate}
-                      </div>
+          {/* Depth */}
+          <fieldset className="mt-8">
+            <legend className="text-sm font-medium">Depth</legend>
+            <RadioGroup
+              value={scanType}
+              onValueChange={(value) => setScanType(value as ScanType)}
+              className="mt-3 grid gap-2 md:grid-cols-2"
+            >
+              {scanTypes.map((type) => (
+                <Label
+                  key={type.value}
+                  htmlFor={`scanType-${type.value}`}
+                  className={cn(
+                    'flex cursor-pointer items-start gap-3 rounded-xl border bg-background p-4 transition-colors select-none has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-trace',
+                    scanType === type.value ? 'border-trace ring-1 ring-trace' : 'hover:border-trace/60'
+                  )}
+                >
+                  <RadioGroupItem value={type.value} id={`scanType-${type.value}`} className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-semibold">{type.label}</span>
+                      <span className="text-xs text-muted-foreground">{type.timeEstimate}</span>
                     </div>
-                  </Label>
-                ))}
-              </RadioGroup>
-            </div>
+                    <p className="mt-1 text-sm font-normal text-muted-foreground">{type.description}</p>
+                  </div>
+                </Label>
+              ))}
+            </RadioGroup>
+          </fieldset>
 
-            {/* Confirmation Checkbox */}
-            <div className="flex items-start space-x-3 rounded-lg border border-border p-4">
+          {/* Confirm + submit */}
+          <div className="mt-8 flex flex-col gap-5 border-t pt-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
               <Checkbox
                 id="confirm"
                 checked={disclaimerAccepted}
@@ -301,29 +285,60 @@ export function NewScanPage() {
                   setDisclaimerAccepted(checked as boolean);
                   if (errors.disclaimerAccepted) setErrors({ ...errors, disclaimerAccepted: '' });
                 }}
-                className={cn(errors.disclaimerAccepted && 'border-destructive')}
+                className={cn('mt-0.5', errors.disclaimerAccepted && 'border-destructive')}
               />
-              <div className="space-y-1">
-                <Label htmlFor="confirm" className="text-sm font-medium cursor-pointer leading-tight">
-                  I confirm I have a legitimate purpose and understand only public info is used
+              <div>
+                <Label htmlFor="confirm" className="cursor-pointer text-sm font-normal leading-snug">
+                  I have a legitimate reason to look into this target.
                 </Label>
                 {errors.disclaimerAccepted && (
-                  <p className="text-sm text-destructive">{errors.disclaimerAccepted}</p>
+                  <p className="mt-1 text-sm text-destructive">{errors.disclaimerAccepted}</p>
                 )}
               </div>
             </div>
-          </CardContent>
-          <CardFooter className="flex justify-end">
-            <Button
-              type="submit"
-              size="lg"
-              disabled={createScanMutation.isPending}
-            >
-              {createScanMutation.isPending ? 'Starting Scan...' : 'Start Scan'}
+            <Button type="submit" size="lg" className="shrink-0" disabled={createScanMutation.isPending || noQuota}>
+              {createScanMutation.isPending ? 'Starting scan…' : 'Start scan'}
             </Button>
-          </CardFooter>
-        </Card>
-      </form>
+          </div>
+          {noQuota && (
+            <p className="mt-3 text-right text-sm text-destructive">
+              You've used today's {quota?.dailyLimit} scans. The count resets at midnight UTC.
+            </p>
+          )}
+        </form>
+
+        {/* ── What this scan checks ────────────────────── */}
+        <aside className="rounded-2xl border bg-card/70 p-6 md:p-8" aria-live="polite">
+          <h2 className="font-display text-xl font-semibold">This scan checks</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {activeSources.length} of {allSources.length} sources for {selectedTarget?.label.toLowerCase()}
+            {scanType === 'quick' && allSources.length > activeSources.length ? '. Deep adds the rest.' : '.'}
+          </p>
+          <ul className="relative mt-6 space-y-1 before:absolute before:bottom-3 before:left-[5px] before:top-3 before:w-px before:bg-trace/40">
+            {allSources.map((source) => {
+              const on = activeSources.includes(source);
+              return (
+                <li key={source.name} className={cn('relative flex gap-4 py-2 pl-6 transition-opacity', !on && 'opacity-45')}>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'absolute left-0 top-[0.85rem] h-[11px] w-[11px] rounded-full border-2',
+                      on ? 'border-trace bg-trace' : 'border-trace/60 bg-card'
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">
+                      {source.name}
+                      {!on && <span className="ml-2 text-xs font-normal text-muted-foreground">deep only</span>}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{source.what}</div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
+      </div>
     </div>
   );
 }

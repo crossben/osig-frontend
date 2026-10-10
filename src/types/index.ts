@@ -15,6 +15,9 @@ export interface User {
   plan?: string;
   createdAt: string;
   updatedAt: string;
+  /** False for Google-created accounts until a password is set */
+  hasPassword?: boolean;
+  googleLinked?: boolean;
 }
 
 export interface AuthTokens {
@@ -41,11 +44,15 @@ export interface AuthResponse {
 }
 
 // ============ Scan Types ============
-export type TargetType = 'email' | 'username' | 'domain' | 'phone';
+export type TargetType = 'email' | 'username' | 'domain' | 'phone' | 'ip' | 'organization';
 export type ScanType = 'quick' | 'deep';
 export type ScanStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export interface Scan {
+  investigationId?: string | null;
+  parentScanId?: string | null;
+  pivotEntity?: string | null;
+  watchId?: string | null;
   id: string;
   userId: string;
   targetType: TargetType;
@@ -94,7 +101,8 @@ export interface RiskFlag {
   severity: RiskLevel;
   description: string;
   source: string;
-  timestamp: string;
+  /** What triggered the flag (breach names, hosts, URLs...) */
+  evidence: string[];
 }
 
 export interface ScanModule {
@@ -143,31 +151,45 @@ export interface ScanDetails {
     totalResults: number;
     totalSources: number;
     riskScore: number;
+    riskLevel: RiskLevel;
     dataCategories: string[];
     topFindings: string[];
   };
 }
 
 // ============ Graph Types ============
+// Entity graph from GET /scans/{id}/graph (backend/app/services/graph_service.py)
+export type EntityKind =
+  | 'target' | 'source' | 'ip' | 'subdomain' | 'domain' | 'nameserver' | 'mailserver'
+  | 'email' | 'network' | 'location' | 'organization' | 'service' | 'url'
+  | 'account' | 'breach' | 'port' | 'phone' | 'person' | 'lookalike';
+
 export interface GraphNode {
   id: string;
-  type: 'email' | 'username' | 'domain' | 'profile' | 'phone' | 'social';
+  kind: EntityKind;
   label: string;
-  data: Record<string, unknown>;
-  riskLevel?: RiskLevel;
+  /** Sources that reported this entity */
+  sources: string[];
+  details: Record<string, unknown>;
+  risk: 'high' | 'medium' | 'low' | null;
+  degree: number;
+  targetType?: TargetType;
+  /** In an investigation graph: pinned by the analyst */
+  pinned?: boolean;
 }
 
 export interface GraphEdge {
   id: string;
   source: string;
   target: string;
-  label?: string;
-  data?: Record<string, unknown>;
+  label: string;
 }
 
 export interface RelationshipGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  kinds: EntityKind[];
+  counts: Partial<Record<EntityKind, number>>;
 }
 
 // ============ Report Types ============
@@ -226,4 +248,63 @@ export interface ToastNotification {
   title: string;
   message?: string;
   duration?: number;
+}
+
+// ============ Investigations ============
+export interface InvestigationPin {
+  id: string;
+  entityId: string;
+  kind: string;
+  label: string;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface InvestigationSummary {
+  id: string;
+  name: string;
+  tags: string[];
+  scanCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Investigation {
+  id: string;
+  name: string;
+  notes: string | null;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  scans: Scan[];
+  pins: InvestigationPin[];
+}
+
+// ============ Watches ============
+export interface Watch {
+  id: string;
+  targetType: TargetType;
+  targetValue: string;
+  scanType: ScanType;
+  intervalHours: number;
+  active: boolean;
+  lastRunAt: string | null;
+  nextRunAt: string;
+  createdAt: string;
+  runCount: number;
+  latestScanId: string | null;
+}
+
+export interface WatchChanges {
+  compared: { previousScanId: string; previousAt: string; latestScanId: string; latestAt: string } | null;
+  added: { id: string; kind: EntityKind; label: string }[];
+  removed: { id: string; kind: EntityKind; label: string }[];
+  runs: number;
+}
+
+export interface OptionalSource {
+  name: string;
+  enabled: boolean;
+  env: string;
+  adds: string;
 }

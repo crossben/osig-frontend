@@ -2,7 +2,7 @@
 // React Query Hooks for API Calls
 // ============================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +12,7 @@ import {
   CreateScanRequest,
   ScanListParams,
   CreateReportRequest,
+  ScanDetails,
 } from '@/types';
 
 // ============ Auth Hooks ============
@@ -27,7 +28,11 @@ export function useLogin() {
         title: 'Welcome back!',
         description: `Logged in as ${data.user.email}`,
       });
-      window.location.hash = '#/';
+      // Stay on the page that asked for sign-in (e.g. after a session expired)
+      const hash = window.location.hash;
+      if (!hash || hash === '#/' || hash.startsWith('#/login') || hash.startsWith('#/register')) {
+        window.location.hash = '#/';
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -104,7 +109,10 @@ export function useScan(scanId: string) {
   });
 }
 
-export function useScanDetails(scanId: string, options?: { refetchInterval?: number | false }) {
+export function useScanDetails(
+  scanId: string,
+  options?: { refetchInterval?: UseQueryOptions<ScanDetails>['refetchInterval'] }
+) {
   return useQuery({
     queryKey: ['scanDetails', scanId],
     queryFn: () => api.getScanDetails(scanId),
@@ -177,10 +185,19 @@ export function useCreateReport() {
 }
 
 // ============ Graph Hooks ============
-export function useRelationshipGraph(scanId: string) {
+/** `version` (e.g. the result count) refetches the graph as findings arrive */
+export function useRelationshipGraph(scanId: string, version = 0) {
+  return useEntityGraph({ scanId }, version);
+}
+
+export function useEntityGraph(source: { scanId?: string; investigationId?: string }, version = 0) {
+  const key = source.investigationId ? ['investigationGraph', source.investigationId] : ['graph', source.scanId];
   return useQuery({
-    queryKey: ['graph', scanId],
-    queryFn: () => api.getRelationshipGraph(scanId),
-    enabled: !!scanId,
+    queryKey: [...key, version],
+    queryFn: () => source.investigationId
+      ? api.getInvestigationGraph(source.investigationId)
+      : api.getRelationshipGraph(source.scanId!),
+    enabled: !!(source.investigationId || source.scanId),
+    placeholderData: (prev) => prev,
   });
 }

@@ -5,8 +5,9 @@
 
 'use client';
 
-import { useState, useSyncExternalStore, useEffect } from 'react';
-import { useTheme } from 'next-themes';
+import { useState, useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import {
   MagnifyingGlassIcon,
   ClockIcon,
@@ -14,10 +15,9 @@ import {
   UserCircleIcon,
   Bars3Icon,
   XMarkIcon,
-  SunIcon,
-  MoonIcon,
   ArrowRightOnRectangleIcon,
-  ShieldCheckIcon,
+  FolderIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
@@ -31,25 +31,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useLogout } from '@/hooks/use-api';
+import { useLogout, useQuotaStatus } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { Logo } from '@/components/brand/logo';
+import { SmoothScroll } from '@/components/motion/smooth-scroll';
+import { GSAP_EASE, RISE_PX, isReducedMotion } from '@/lib/motion';
+
+gsap.registerPlugin(useGSAP);
 
 const navItems = [
-  { label: 'New Scan', href: '/', icon: MagnifyingGlassIcon },
-  { label: 'Scan History', href: '/history', icon: ClockIcon },
+  { label: 'New scan', href: '/', icon: MagnifyingGlassIcon },
+  { label: 'Scan history', href: '/history', icon: ClockIcon },
+  { label: 'Investigations', href: '/investigation', icon: FolderIcon },
+  { label: 'Watches', href: '/watches', icon: EyeIcon },
   { label: 'Reports', href: '/reports', icon: DocumentTextIcon },
-  { label: 'Profile', href: '/profile', icon: UserCircleIcon },
+  { label: 'Account', href: '/profile', icon: UserCircleIcon },
 ];
 
-// Custom hook for mounting detection without setState in effect
-function useMounted() {
-  return useSyncExternalStore(
-    () => () => { },
-    () => true,
-    () => false
-  );
-}
 
 function PlanBadge({ plan }: { plan: string }) {
   const colors = {
@@ -65,31 +65,6 @@ function PlanBadge({ plan }: { plan: string }) {
   );
 }
 
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
-  const mounted = useMounted();
-
-  if (!mounted) {
-    return <Button variant="ghost" size="icon" className="h-9 w-9" />;
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-9 w-9"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-    >
-      {theme === 'dark' ? (
-        <SunIcon className="h-5 w-5" />
-      ) : (
-        <MoonIcon className="h-5 w-5" />
-      )}
-      <span className="sr-only">Toggle theme</span>
-    </Button>
-  );
-}
-
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
@@ -99,7 +74,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [currentPath, setCurrentPath] = useState('/');
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
-  const mounted = useMounted();
   const [isMobile, setIsMobile] = useState(false);
 
   // Track hash changes for active link highlighting
@@ -128,20 +102,46 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return currentPath === href || (href !== '/' && currentPath.startsWith(href));
   };
 
+  const { data: quota } = useQuotaStatus();
+  const navRef = useRef<HTMLElement>(null);
+  const markerRef = useRef<HTMLSpanElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+
+  // Nav marker slides to the active item; the page rises in once per navigation
+  useGSAP(() => {
+    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    const marker = markerRef.current;
+    const reduced = isReducedMotion();
+    if (marker) {
+      if (active) {
+        const to = { y: active.offsetTop, height: active.offsetHeight, autoAlpha: 1 };
+        if (reduced) gsap.set(marker, to);
+        else gsap.to(marker, { ...to, duration: 0.45, ease: GSAP_EASE });
+      } else {
+        gsap.set(marker, { autoAlpha: 0 });
+      }
+    }
+    if (!reduced && pageRef.current) {
+      gsap.fromTo(pageRef.current, { y: RISE_PX, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.5, ease: GSAP_EASE });
+    }
+    mainRef.current?.scrollTo({ top: 0 });
+  }, { dependencies: [currentPath, user?.id] });
+
   if (!user) {
     return <>{children}</>;
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    // Viewport-height shell: sidebar and headers stay put, only <main> scrolls
+    <div className="h-dvh flex flex-col overflow-hidden">
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+      <header className="md:hidden shrink-0 z-50 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="h-9 w-9">
           <Bars3Icon className="h-5 w-5" />
         </Button>
         <a href="#/" className="flex items-center gap-2 font-semibold">
-          <ShieldCheckIcon className="h-6 w-6 text-primary" />
-          <span>OSIG</span>
+          <Logo />
         </a>
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
@@ -165,7 +165,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuItem asChild>
                 <a href="#/profile" className="cursor-pointer">
                   <UserCircleIcon className="mr-2 h-4 w-4" />
-                  Profile
+                  Account
                 </a>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -178,20 +178,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-40 flex flex-col border-r bg-background transition-all duration-300 w-64',
-            'md:relative md:translate-x-0',
-            isMobile && sidebarOpen ? 'translate-x-0' : isMobile ? '-translate-x-full' : ''
+            'fixed inset-y-0 left-0 z-40 flex flex-col border-r bg-sidebar transition-transform duration-300 w-64',
+            'md:static md:h-full md:shrink-0 md:translate-x-0',
+            // Closed state comes from CSS, so the sidebar never flashes open on first paint
+            sidebarOpen ? 'translate-x-0' : 'max-md:-translate-x-full'
           )}
         >
           {/* Sidebar Header */}
           <div className="flex h-14 items-center border-b px-4">
             <a href="#/" className="flex items-center gap-2 font-semibold">
-              <ShieldCheckIcon className="h-6 w-6 text-primary" />
-              <span className="text-lg">OSIG</span>
+              <Logo size="lg" />
             </a>
             {isMobile && (
               <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} className="ml-auto h-9 w-9">
@@ -201,7 +201,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-3">
+          <nav ref={navRef} className="relative flex-1 space-y-1 p-3 overflow-y-auto" aria-label="Main">
+            <span
+              ref={markerRef}
+              aria-hidden
+              className="pointer-events-none invisible absolute left-3 top-0 w-[3px] rounded-full bg-trace"
+            />
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -210,11 +215,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   key={item.href}
                   href={`#${item.href}`}
                   onClick={() => isMobile && setSidebarOpen(false)}
+                  aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-lg py-2.5 pl-5 pr-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-trace',
                     active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      ? 'bg-sidebar-accent text-foreground font-semibold'
+                      : 'text-muted-foreground font-medium hover:bg-sidebar-accent/60 hover:text-foreground'
                   )}
                 >
                   <Icon className="h-5 w-5" />
@@ -223,6 +229,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               );
             })}
           </nav>
+
+          {/* Daily quota */}
+          {quota && quota.dailyLimit < 100000 && (
+            <div className="mx-3 mb-3 rounded-lg border bg-background/60 px-3 py-2.5">
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-muted-foreground">Scans left today</span>
+                <span className="font-semibold">{quota.remaining} of {quota.dailyLimit}</span>
+              </div>
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                <div
+                  className={cn('h-full rounded-full transition-[width] duration-500', quota.remaining === 0 ? 'bg-destructive' : 'bg-trace')}
+                  style={{ width: `${(quota.remaining / quota.dailyLimit) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Sidebar Footer (Desktop Only) */}
           <div className="hidden md:flex border-t p-3">
@@ -250,7 +272,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <DropdownMenuItem asChild>
                   <a href="#/profile" className="cursor-pointer">
                     <UserCircleIcon className="mr-2 h-4 w-4" />
-                    Profile
+                    Account
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -265,25 +287,31 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Mobile Overlay */}
         {isMobile && sidebarOpen && (
-          <div
+          <button
+            type="button"
+            aria-label="Close menu"
             className="fixed inset-0 z-30 bg-background/80 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
         )}
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0">
+        <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto paper-grid">
+          <SmoothScroll wrapper={mainRef} />
+          {/* Single content child: Lenis scrolls this inside <main> */}
+          <div className="min-h-full flex flex-col">
           {/* Desktop Header */}
-          <header className="hidden md:flex sticky top-0 z-30 h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
+          <header className="hidden md:flex sticky top-0 z-30 h-14 items-center gap-4 border-b bg-background/85 backdrop-blur px-8">
             <div className="flex-1" />
             <ThemeToggle />
           </header>
 
           {/* Page Content */}
-          <div className="flex-1 p-4 md:p-6">
+          <div ref={pageRef} className="flex-1 p-4 md:p-8">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>
+          </div>
           </div>
         </main>
       </div>

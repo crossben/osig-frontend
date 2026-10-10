@@ -1,0 +1,19 @@
+{
+  "allowScripts": {
+    "@parcel/watcher": {
+      "version": "2.5.4",
+      "hash": "sha256-269d7b4ea5ac06ed273dd33399f6f41adac437766d49fbf6c206429e082d6c78",
+      "at": "2026-10-10"
+    },
+    "@swc/core": {
+      "version": "1.15.8",
+      "hash": "sha256-8137f0f4d2a353e04fb9033d2da09906ae4a74f2b967f98da12cb6fa42e7e68d",
+      "at": "2026-10-10"
+    },
+    "sharp": {
+      "version": "0.34.5",
+      "hash": "sha256-b0ad86f28de56be441b2353b84ec2c5c8af6a01041df7b5c8a5d2255ef43e1e7",
+      "at": "2026-10-10"
+    }
+  }
+}

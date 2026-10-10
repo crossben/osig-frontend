@@ -4,208 +4,139 @@
 
 'use client';
 
-import { useState } from 'react';
-import { ShieldCheckIcon, EnvelopeIcon, UserIcon, CalendarIcon } from '@heroicons/react/24/outline';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { PageHeader } from '@/components/layout/page-header';
 import { useAuthStore } from '@/store';
-import { useToast } from '@/hooks/use-toast';
+import { useQuotaStatus } from '@/hooks/use-api';
+import { cn } from '@/lib/utils';
+import { PasswordForm, ProfileForm } from './account-forms';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
-function PlanBadge({ plan }: { plan: string }) {
-  const colors = {
-    free: 'bg-muted text-muted-foreground',
-    pro: 'bg-primary/10 text-primary',
-    enterprise: 'bg-gradient-to-r from-primary to-primary/60 text-primary-foreground',
-  };
-
-  return (
-    <Badge variant="secondary" className={cn('text-sm font-medium', colors[plan as keyof typeof colors])}>
-      {plan.toUpperCase()}
-    </Badge>
-  );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(' ');
-}
+const planNames: Record<string, string> = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' };
 
 export function ProfilePage() {
   const { user } = useAuthStore();
-  const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    fullName: user?.fullName || '',
-    email: user?.email || '',
-    username: user?.username || '',
-  });
-
-  const handleSave = () => {
-    // In a real app, this would call the API
-    toast({
-      title: 'Profile updated',
-      description: 'Your profile has been updated successfully',
-    });
-    setIsEditing(false);
-  };
+  const { data: quota } = useQuotaStatus();
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Loading profile...</p>
-      </div>
-    );
+    return <p className="py-16 text-center text-muted-foreground">Loading your account…</p>;
   }
 
+  const unlimited = quota ? quota.dailyLimit >= 100000 : false;
+  const usedPct = quota && !unlimited ? Math.min(100, (quota.usedToday / quota.dailyLimit) * 100) : 0;
+  const initial = (user.fullName || user.username || 'U')[0]?.toUpperCase();
+
+  const details = [
+    { label: 'Username', value: user.username },
+    { label: 'Email', value: user.email },
+    { label: 'Member since', value: new Date(user.createdAt).toLocaleDateString([], { dateStyle: 'long' }) },
+    { label: 'Sign-in methods', value: [user.hasPassword !== false && 'Email and password', user.googleLinked && 'Google'].filter(Boolean).join(' · ') || '—' },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+    <div className="w-full">
+      <PageHeader title="Account" description="Your details and today's scan allowance." />
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <section className="rounded-2xl border bg-card p-6 md:p-8">
+          <div className="flex items-center gap-5">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src={user.avatarUrl || ''} alt="" />
+              <AvatarFallback className="bg-primary font-display text-2xl text-primary-foreground">{initial}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <h2 className="truncate font-display text-2xl font-semibold">{user.fullName || user.username}</h2>
+              <p className="truncate text-muted-foreground">{user.email}</p>
+            </div>
+          </div>
+
+          <dl className="mt-8 divide-y border-y">
+            {details.map((d) => (
+              <div key={d.label} className="grid gap-1 py-4 sm:grid-cols-[12rem_1fr]">
+                <dt className="text-sm text-muted-foreground">{d.label}</dt>
+                <dd className="min-w-0 break-words">{d.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section className="rounded-2xl border bg-card p-6 md:p-8">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-xl font-semibold">Plan</h2>
+            <span className="rounded-full bg-primary px-3 py-0.5 text-sm font-medium text-primary-foreground">
+              {(user.plan && planNames[user.plan]) || user.plan || 'Free'}
+            </span>
+          </div>
+
+          {!quota ? (
+            <p className="mt-6 text-sm text-muted-foreground">Loading usage…</p>
+          ) : unlimited ? (
+            <p className="mt-6">Unlimited scans.</p>
+          ) : (
+            <>
+              <p className="mt-6 font-display text-5xl font-bold tabular-nums">
+                {quota.remaining}
+                <span className="ml-2 font-sans text-base font-normal text-muted-foreground">
+                  of {quota.dailyLimit} scans left today
+                </span>
+              </p>
+              <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+                <div
+                  className={cn('h-full rounded-full', quota.remaining === 0 ? 'bg-destructive' : 'bg-trace')}
+                  style={{ width: `${100 - usedPct}%` }}
+                />
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {quota.usedToday} used. The count resets at midnight UTC.
+              </p>
+            </>
+          )}
+        </section>
       </div>
 
-      {/* Profile Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Information</CardTitle>
-          <CardDescription>
-            Your personal information and account details
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Avatar Section */}
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={user.avatarUrl || ''} />
-              <AvatarFallback className="text-2xl">{user.username?.[0]?.toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
-            <div className="space-y-1">
-              <h3 className="text-lg font-medium">{user.fullName || user.username}</h3>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
-              <PlanBadge plan={user.plan} />
-            </div>
-          </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <section className="rounded-2xl border bg-card p-6 md:p-8">
+          <h2 className="font-display text-xl font-semibold">Your details</h2>
+          <p className="mb-6 mt-1 text-sm text-muted-foreground">Shown in the sidebar and on reports you export.</p>
+          <ProfileForm />
+        </section>
+        <section className="rounded-2xl border bg-card p-6 md:p-8">
+          <h2 className="font-display text-xl font-semibold">Password</h2>
+          <p className="mb-6 mt-1 text-sm text-muted-foreground">Changing it signs out your other devices.</p>
+          <PasswordForm />
+        </section>
+      </div>
 
-          <Separator />
-
-          {/* Form Fields */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <div className="flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="username"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="flex items-center gap-2">
-                <EnvelopeIcon className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  disabled={!isEditing}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                disabled={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="createdAt">Member Since</Label>
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="createdAt"
-                  value={new Date(user.createdAt).toLocaleDateString()}
-                  disabled
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-end gap-2">
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>Save Changes</Button>
-            </>
-          ) : (
-            <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
-          )}
-        </CardFooter>
-      </Card>
-
-      {/* Plan Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheckIcon className="h-5 w-5 text-primary" />
-            Subscription Plan
-          </CardTitle>
-          <CardDescription>
-            Your current plan and usage limits
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <PlanBadge plan={user.plan} />
-              <p className="text-sm text-muted-foreground">
-                {user.plan === 'free' && '5 scans per month, basic modules'}
-                {user.plan === 'pro' && '100 scans per month, all modules'}
-                {user.plan === 'enterprise' && 'Unlimited scans, priority support'}
-              </p>
-            </div>
-            {user.plan !== 'enterprise' && (
-              <Button>Upgrade Plan</Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Security</CardTitle>
-          <CardDescription>
-            Manage your password and security settings
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline">Change Password</Button>
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div>
-              <p className="font-medium">Two-Factor Authentication</p>
-              <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
-            </div>
-            <Button variant="outline">Enable</Button>
-          </div>
-        </CardContent>
-      </Card>
+      <section className="mt-6 rounded-2xl border bg-card p-6 md:p-8">
+        <h2 className="font-display text-xl font-semibold">Optional data sources</h2>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">
+          These sources need an API key or a switch set by whoever runs this OSIG server, in its <span className="font-mono">.env</span> file.
+        </p>
+        <OptionalSources />
+      </section>
     </div>
+  );
+}
+
+function OptionalSources() {
+  const { data } = useQuery({ queryKey: ['optionalSources'], queryFn: () => api.getOptionalSources() });
+  if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  return (
+    <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {data.map((src) => (
+        <li key={src.env} className="rounded-xl border bg-background p-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold">{src.name}</span>
+            <span className={cn('inline-flex items-center gap-1.5 text-xs', src.enabled ? 'text-success' : 'text-muted-foreground')}>
+              <span aria-hidden className={cn('h-2 w-2 rounded-full', src.enabled ? 'bg-success' : 'bg-muted-foreground/50')} />
+              {src.enabled ? 'On' : 'Off'}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{src.adds}</p>
+          {!src.enabled && <p className="mt-2 font-mono text-xs text-muted-foreground">{src.env}=…</p>}
+        </li>
+      ))}
+    </ul>
   );
 }

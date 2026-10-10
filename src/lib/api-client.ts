@@ -7,6 +7,27 @@ import { env } from '@/lib/env';
 import { useAuthStore } from '@/store/auth-store';
 import { ApiResponse } from '@/types';
 
+// One refresh at a time: parallel 401s share the same in-flight request
+let refreshInFlight: Promise<string | null> | null = null;
+
+export function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = useAuthStore.getState().tokens?.refreshToken;
+  if (!refreshToken) return Promise.resolve(null);
+  refreshInFlight = axios
+    .post(`${env.apiUrl}/auth/refresh`, { refresh_token: refreshToken })
+    .then(({ data }) => {
+      useAuthStore.getState().setTokens({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      });
+      return data.access_token as string;
+    })
+    .finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
 // Create axios instance with base configuration
 const createApiClient = (): AxiosInstance => {
   const client = axios.create({
@@ -40,22 +61,24 @@ const createApiClient = (): AxiosInstance => {
         originalRequest._retry = true;
 
         try {
-          const tokens = useAuthStore.getState().tokens;
-          if (tokens?.refreshToken) {
-            const response = await axios.post(`${env.apiUrl}/auth/refresh`, {
-              refreshToken: tokens.refreshToken,
-            });
-
-            const newTokens = response.data.data.tokens;
-            useAuthStore.getState().setTokens(newTokens);
-
+          const newAccess = await refreshAccessToken();
+          if (newAccess) {
             if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
+              originalRequest.headers.Authorization = `Bearer ${newAccess}`;
             }
             return client(originalRequest);
           }
         } catch {
-          // Refresh failed - logout user
+          // Refresh failed - fall through to sign-out below
+        }
+
+        // Session expired and couldn't be renewed: sign out and go to the login
+        // page instead of leaving every query failing on a blank screen.
+        // (Login itself answers 401 for a wrong password — leave that to the form.)
+        const isAuthCall = /\/auth\/(login|register)/.test(originalRequest.url ?? '');
+        if (!isAuthCall && useAuthStore.getState().isAuthenticated) {
+          // Keep the URL: protected routes render the sign-in form, and signing
+          // back in returns straight to this page
           useAuthStore.getState().logout();
         }
       }
@@ -107,8 +130,17 @@ export async function apiCall<T>(
   } catch (error: any) {
     if (error.response && error.response.data && error.response.data.detail) {
       const detail = error.response.data.detail;
-      const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
-      throw new Error(message);
+      // FastAPI validation errors arrive as [{loc: [...], msg}, ...]
+      const message = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: any) => {
+              const field = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : undefined;
+              const msg = String(d.msg ?? '').replace(/^Value error, /, '');
+              return field && field !== 'body' ? `${field}: ${msg}` : msg;
+            }).join('\n')
+          : JSON.stringify(detail);
+      throw new Error(message, { cause: error });
     }
     throw error;
   }

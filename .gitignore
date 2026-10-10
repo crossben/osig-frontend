@@ -49,3 +49,6 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Playwright
+/test-results/
+/playwright-report/

@@ -14,11 +14,15 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { HomePage } from '@/features/home/home-page';
 import { LoginPage } from '@/features/auth/login-page';
 import { RegisterPage } from '@/features/auth/register-page';
+import { OAuthCallbackPage } from '@/features/auth/oauth-callback-page';
 import { ProfilePage } from '@/features/auth/profile-page';
 import { NewScanPage } from '@/features/scans/new-scan-page';
 import { ScanDetailsPage } from '@/features/scans/scan-details-page';
 import { ScanHistoryPage } from '@/features/scans/scan-history-page';
 import { ReportsPage } from '@/features/reports/reports-page';
+import { InvestigationsPage } from '@/features/investigations/investigations-page';
+import { InvestigationDetailPage } from '@/features/investigations/investigation-detail-page';
+import { WatchesPage } from '@/features/watches/watches-page';
 
 // Custom hook for mounting detection without setState in effect
 function useMounted() {
@@ -60,6 +64,13 @@ function useHashRouter() {
   return route;
 }
 
+function RedirectHome() {
+  useEffect(() => {
+    window.location.hash = '#/';
+  }, []);
+  return null;
+}
+
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuthStore();
   const { path, params } = useHashRouter();
@@ -79,13 +90,15 @@ function AppContent() {
     return <HomePage />;
   }
 
-  // Auth pages (no dashboard layout)
-  if (path === '/login') {
-    return isAuthenticated ? null : <LoginPage />;
+  // Auth pages (no dashboard layout); signed-in users go to the dashboard
+  // Google sign-in landing: must render even while signed out
+  if (path === '/oauth') {
+    return <OAuthCallbackPage />;
   }
 
-  if (path === '/register') {
-    return isAuthenticated ? null : <RegisterPage />;
+  if (path === '/login' || path === '/register') {
+    if (isAuthenticated) return <RedirectHome />;
+    return path === '/login' ? <LoginPage /> : <RegisterPage />;
   }
 
   // Protected pages
@@ -102,6 +115,12 @@ function AppContent() {
         return <ScanHistoryPage />;
       case '/reports':
         return <ReportsPage />;
+      case '/investigations':
+        return <InvestigationsPage />;
+      case '/investigation':
+        return params.id ? <InvestigationDetailPage key={params.id} /> : <InvestigationsPage />;
+      case '/watches':
+        return <WatchesPage />;
       case '/profile':
         return <ProfilePage />;
       case '/scan':

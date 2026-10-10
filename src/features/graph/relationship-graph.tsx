@@ -1,370 +1,571 @@
-// frontend/src/features/graph/relationship-graph.tsx
 // ============================================
-// Semantic Relationship Graph
-// Nodes grouped by source/platform with found/not-found distinction
+// Entity graph
+// Every entity a scan found (IPs, hosts, emails, accounts, URLs, ...) as one
+// node, linked to the sources that reported it and to related entities.
+// Layout: d3-force, computed once per data set so it is stable between renders.
 // ============================================
 
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ReactFlow,
-  Node,
-  Edge,
-  useNodesState,
-  useEdgesState,
-  Controls,
+  ReactFlowProvider,
   Background,
   BackgroundVariant,
-  MarkerType,
-  Position,
+  Controls,
+  MiniMap,
   Handle,
-  NodeProps,
+  Position,
+  useReactFlow,
+  useNodesState,
+  getNodesBounds,
+  getViewportForBounds,
+  type Edge,
+  type Node,
+  type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+} from 'd3-force';
+import {
+  ArrowTopRightOnSquareIcon,
+  ArrowDownTrayIcon,
+  AtSymbolIcon,
+  BuildingOffice2Icon,
+  CircleStackIcon,
+  CpuChipIcon,
   EnvelopeIcon,
-  UserIcon,
-  GlobeAltIcon,
-  PhoneIcon,
-  UserCircleIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon,
+  GlobeAltIcon,
+  LinkIcon,
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  PhoneIcon,
+  ServerIcon,
+  ServerStackIcon,
+  ShieldCheckIcon,
+  SignalIcon,
+  UserCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { toPng } from 'html-to-image';
+import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { useRelationshipGraph } from '@/hooks/use-api';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useEntityGraph } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
+import type { EntityKind, GraphEdge, GraphNode, RelationshipGraph as GraphData } from '@/types';
 
-// ─── Icon map ─────────────────────────────────────────────────────────────
-const nodeTypeIcons: Record<string, React.ElementType> = {
-  email: EnvelopeIcon,
-  username: UserIcon,
-  domain: GlobeAltIcon,
-  phone: PhoneIcon,
-  profile: UserCircleIcon,
-  social: UserCircleIcon,
-  dork: MagnifyingGlassIcon,
+// ─── Kind presentation ────────────────────────────────────────────────────
+const KIND: Record<EntityKind, { label: string; icon: React.ElementType }> = {
+  target: { label: 'Target', icon: MagnifyingGlassIcon },
+  source: { label: 'Sources', icon: CircleStackIcon },
+  ip: { label: 'IP addresses', icon: CpuChipIcon },
+  subdomain: { label: 'Subdomains', icon: GlobeAltIcon },
+  domain: { label: 'Domains', icon: GlobeAltIcon },
+  nameserver: { label: 'Nameservers', icon: ServerStackIcon },
+  mailserver: { label: 'Mail servers', icon: EnvelopeIcon },
+  email: { label: 'Emails', icon: AtSymbolIcon },
+  network: { label: 'Networks', icon: SignalIcon },
+  location: { label: 'Locations', icon: MapPinIcon },
+  organization: { label: 'Organizations', icon: BuildingOffice2Icon },
+  service: { label: 'Services', icon: ShieldCheckIcon },
+  url: { label: 'URLs', icon: LinkIcon },
+  account: { label: 'Accounts', icon: UserCircleIcon },
+  breach: { label: 'Breaches', icon: ExclamationTriangleIcon },
+  port: { label: 'Open ports', icon: ServerIcon },
+  phone: { label: 'Phones', icon: PhoneIcon },
+  person: { label: 'People', icon: UserCircleIcon },
+  lookalike: { label: 'Lookalikes', icon: ExclamationTriangleIcon },
 };
 
-// ─── Color config ─────────────────────────────────────────────────────────
-// found=true & not risky → green
-// found=true & risky    → red
-// found=false           → muted grey
-// root                  → primary/blue
-const getNodeColors = (found: boolean, isRoot: boolean, risk: string | null) => {
-  if (isRoot) return 'bg-primary/10 border-primary/60 text-primary';
-  if (risk === 'high') return 'bg-red-500/15 border-red-500/60 text-red-600 dark:text-red-400';
-  if (found) return 'bg-green-500/15 border-green-500/60 text-green-600 dark:text-green-400';
-  return 'bg-muted/30 border-border text-muted-foreground opacity-60';
+// One hue per kind; fills/borders are mixed from it so it reads in both themes
+const KIND_COLOR: Record<EntityKind, string> = {
+  target: 'var(--primary)',
+  source: 'var(--trace)',
+  ip: '#3B82F6',
+  subdomain: '#6366F1',
+  domain: '#8B5CF6',
+  nameserver: '#14B8A6',
+  mailserver: '#0EA5E9',
+  email: '#F59E0B',
+  network: '#10B981',
+  location: '#22C55E',
+  organization: '#A855F7',
+  service: '#06B6D4',
+  url: '#64748B',
+  account: '#EC4899',
+  breach: '#EF4444',
+  port: '#F97316',
+  phone: '#84CC16',
+  person: '#D946EF',
+  lookalike: '#E11D48',
 };
+const kindColor = (kind: EntityKind) => KIND_COLOR[kind] ?? 'var(--trace)';
 
-// ─── Custom Node ──────────────────────────────────────────────────────────
-type NodeData = {
-  label: string;
-  nodeType: string;
-  found: boolean;
-  isRoot: boolean;
-  riskLevel: string | null;
-  sourceUrl: string | null;
-  resultCount?: number;
-  source?: string;
-};
+// ─── Node ─────────────────────────────────────────────────────────────────
+type EntityData = GraphNode & { dim: boolean; focus: boolean } & Record<string, unknown>;
 
-function CustomNode({ data, selected }: NodeProps<Node<NodeData>>) {
-  const Icon = nodeTypeIcons[data.nodeType] ?? UserIcon;
-  const colorClass = getNodeColors(data.found, data.isRoot, data.riskLevel);
+// Handles sit at the node center so straight edges run center to center
+const centerHandle = '!h-px !w-px !min-h-0 !min-w-0 !border-0 !bg-transparent !left-1/2 !top-1/2';
 
+const EntityNode = memo(function EntityNode({ data, selected }: NodeProps<Node<EntityData>>) {
+  const { icon: Icon } = KIND[data.kind] ?? KIND.domain;
+  const corroborated = data.kind !== 'source' && data.kind !== 'target' && data.sources.length > 1;
+  const entity = data.kind !== 'target' && data.kind !== 'source';
+  const color = data.risk === 'high' ? 'var(--destructive)' : kindColor(data.kind);
   return (
-    <>
-      <Handle type="target" position={Position.Top} className="!bg-primary !w-2 !h-2" />
-      <div
-        className={cn(
-          'rounded-xl border-2 px-3 py-2 min-w-[130px] max-w-[180px] shadow-sm transition-all cursor-pointer',
-          colorClass,
-          selected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
-          !data.found && !data.isRoot && 'border-dashed',
-        )}
-      >
-        <div className="flex items-center gap-1.5">
-          <Icon className="h-4 w-4 shrink-0" />
-          <span className="text-xs font-semibold truncate">{data.label}</span>
-          {data.riskLevel === 'high' && (
-            <ExclamationTriangleIcon className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          )}
-          {data.found && !data.isRoot && data.riskLevel !== 'high' && (
-            <CheckCircleIcon className="h-3.5 w-3.5 text-green-500 shrink-0" />
-          )}
-        </div>
-        {!data.isRoot && (
-          <div className="text-[10px] mt-0.5 opacity-70">
-            {data.found ? (data.resultCount ? `${data.resultCount} result(s)` : 'found') : 'not found'}
-          </div>
-        )}
-      </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-primary !w-2 !h-2" />
-    </>
-  );
-}
-
-const nodeTypes = { custom: CustomNode };
-
-// ─── Main Component ───────────────────────────────────────────────────────
-interface RelationshipGraphProps {
-  scanId: string;
-}
-
-export function RelationshipGraph({ scanId }: RelationshipGraphProps) {
-  const { data: graphData, isLoading, error } = useRelationshipGraph(scanId);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-
-  // Convert API nodes to ReactFlow nodes
-  const initialNodes: Node[] = useMemo(() => {
-    if (!graphData?.nodes?.length) return [];
-
-    const apiNodes = graphData.nodes as Array<{
-      id: string; type: string; label: string; found: boolean; is_root: boolean;
-      risk_level: string | null; source_url: string | null; source?: string;
-      data?: { result_count?: number; results?: unknown[] };
-    }>;
-
-    // Spread root in center, children in a circle around it
-    const root = apiNodes.find(n => n.is_root);
-    const children = apiNodes.filter(n => !n.is_root);
-    const radius = 280;
-    const cx = 450;
-    const cy = 300;
-
-    return apiNodes.map((node) => {
-      let x = cx;
-      let y = cy;
-
-      if (!node.is_root) {
-        const idx = children.findIndex(c => c.id === node.id);
-        const angle = (2 * Math.PI * idx) / children.length - Math.PI / 2;
-        x = cx + radius * Math.cos(angle);
-        y = cy + radius * Math.sin(angle);
-      }
-
-      return {
-        id: node.id,
-        type: 'custom',
-        position: { x, y },
-        data: {
-          label: node.label,
-          nodeType: node.type,
-          found: node.found ?? false,
-          isRoot: node.is_root ?? false,
-          riskLevel: node.risk_level ?? null,
-          sourceUrl: node.source_url ?? null,
-          source: node.source ?? node.label,
-          resultCount: node.data?.result_count,
-        } as NodeData,
-      };
-    });
-  }, [graphData]);
-
-  const initialEdges: Edge[] = useMemo(() => {
-    if (!graphData?.edges) return [];
-    return (graphData.edges as Array<{
-      id: string; source: string; target: string; label: string; found: boolean;
-    }>).map(edge => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      label: edge.label,
-      animated: edge.found,
-      style: {
-        stroke: edge.found ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))',
-        strokeWidth: edge.found ? 2 : 1,
-        strokeDasharray: edge.found ? undefined : '4 4',
-        opacity: edge.found ? 1 : 0.45,
-      },
-      markerEnd: edge.found ? {
-        type: MarkerType.ArrowClosed,
-        color: 'hsl(var(--primary))',
-      } : undefined,
-      labelStyle: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' },
-      labelBgStyle: { fill: 'hsl(var(--background))', fillOpacity: 0.8 },
-      labelBgPadding: [4, 6] as [number, number],
-      labelBgBorderRadius: 4,
-    }));
-  }, [graphData]);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  useEffect(() => {
-    if (initialNodes.length > 0) {
-      setNodes(initialNodes);
-      setEdges(initialEdges);
-    }
-  }, [initialNodes, initialEdges, setNodes, setEdges]);
-
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
-    setSelectedNode(node);
-  }, []);
-
-  // ── Legend ──────────────────────────────────────────────────────────────
-  const Legend = () => (
-    <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1.5 bg-background/90 backdrop-blur-sm rounded-lg border px-3 py-2 text-xs">
-      <div className="font-semibold text-muted-foreground mb-1">Legend</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-green-500/60 bg-green-500/15 inline-block" /> Found / Active</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-dashed border-border bg-muted/30 inline-block opacity-60" /> Not found</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-red-500/60 bg-red-500/15 inline-block" /> Risk detected</div>
-      <div className="flex items-center gap-2"><span className="w-3 h-3 rounded border-2 border-primary/60 bg-primary/10 inline-block" /> Scan target</div>
+    <div
+      style={{ '--kc': color } as React.CSSProperties}
+      className={cn(
+        'flex max-w-[220px] items-center gap-1.5 whitespace-nowrap rounded-lg border',
+        data.kind === 'target' && 'rounded-xl border-primary bg-primary px-3.5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg',
+        data.kind === 'source' && 'border-trace/60 bg-accent px-2.5 py-1.5 text-xs font-semibold text-foreground',
+        entity && 'border-[color-mix(in_srgb,var(--kc)_55%,transparent)] bg-[color-mix(in_srgb,var(--kc)_16%,var(--card))] px-2 py-1 text-[11px] text-foreground shadow-sm',
+        data.risk === 'high' && 'font-semibold',
+        selected && 'ring-2 ring-[var(--kc)] ring-offset-2 ring-offset-background',
+        data.focus && !selected && 'ring-1 ring-trace',
+        data.dim && 'opacity-20',
+      )}
+    >
+      <Handle type="target" position={Position.Top} className={centerHandle} isConnectable={false} />
+      <Icon
+        className={cn('shrink-0', data.kind === 'target' ? 'h-4 w-4' : 'h-3.5 w-3.5', data.kind === 'source' && 'text-trace')}
+        style={entity ? { color: 'var(--kc)' } : undefined}
+      />
+      <span className={cn('truncate', data.kind === 'target' && 'font-mono')}>{data.label}</span>
+      {data.pinned && (
+        <BookmarkSolidIcon aria-label="Pinned" className="h-3 w-3 shrink-0 text-[var(--kc)]" />
+      )}
+      {corroborated && (
+        <span className="mark shrink-0 rounded text-[10px] font-semibold" title={`Reported by ${data.sources.length} sources`}>
+          ×{data.sources.length}
+        </span>
+      )}
+      <Handle type="source" position={Position.Bottom} className={centerHandle} isConnectable={false} />
     </div>
   );
+});
 
-  // ── States ───────────────────────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="space-y-4">
-          <Skeleton className="h-32 w-64" />
-          <Skeleton className="h-32 w-64" />
-        </div>
-      </div>
-    );
+const nodeTypes = { entity: EntityNode };
+
+// ─── Layout ───────────────────────────────────────────────────────────────
+type SimNode = SimulationNodeDatum & { id: string; kind: EntityKind };
+
+function layout(nodes: GraphNode[], edges: GraphEdge[]): Map<string, { x: number; y: number }> {
+  // Deterministic seed: kinds on rings so runs are stable and clusters form by kind
+  const kindIndex = new Map<string, number>();
+  const sim: SimNode[] = nodes.map((n, i) => {
+    if (n.kind === 'target') return { id: n.id, kind: n.kind, x: 0, y: 0, fx: 0, fy: 0 };
+    const k = kindIndex.get(n.kind) ?? kindIndex.size;
+    kindIndex.set(n.kind, k);
+    const ring = n.kind === 'source' ? 180 : 420;
+    const angle = (i / nodes.length) * Math.PI * 2;
+    return { id: n.id, kind: n.kind, x: Math.cos(angle) * ring, y: Math.sin(angle) * ring };
+  });
+  const links: SimulationLinkDatum<SimNode>[] = edges.map((e) => ({ source: e.source, target: e.target }));
+
+  forceSimulation(sim)
+    .force('link', forceLink<SimNode, SimulationLinkDatum<SimNode>>(links).id((d) => d.id)
+      .distance((l) => ((l.source as SimNode).kind === 'target' ? 190 : 120))
+      .strength(0.7))
+    .force('charge', forceManyBody<SimNode>().strength((d) => (d.kind === 'source' ? -900 : -320)))
+    .force('collide', forceCollide<SimNode>().radius((d) => (d.kind === 'target' ? 90 : d.kind === 'source' ? 80 : 62)))
+    .force('x', forceX(0).strength(0.03))
+    .force('y', forceY(0).strength(0.03))
+    .force('center', forceCenter(0, 0))
+    .stop()
+    .tick(320);
+
+  return new Map(sim.map((n) => [n.id, { x: n.x ?? 0, y: n.y ?? 0 }]));
+}
+
+/** Without source nodes, re-attach entities directly to the target */
+function withoutSources(g: GraphData): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const sourceIds = new Set(g.nodes.filter((n) => n.kind === 'source').map((n) => n.id));
+  const root = g.nodes.find((n) => n.kind === 'target');
+  const edges: GraphEdge[] = [];
+  const seen = new Set<string>();
+  for (const e of g.edges) {
+    const s = sourceIds.has(e.source) ? root?.id : e.source;
+    const t = sourceIds.has(e.target) ? root?.id : e.target;
+    if (!s || !t || s === t) continue;
+    const key = [s, t].sort().join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push({ ...e, id: key, source: s, target: t, label: sourceIds.has(e.source) ? 'found' : e.label });
   }
+  return { nodes: g.nodes.filter((n) => n.kind !== 'source'), edges };
+}
 
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-destructive">
-        <div className="text-center">
-          <p className="font-medium">Failed to load graph data</p>
-          <p className="text-sm">{error.message}</p>
-        </div>
-      </div>
-    );
-  }
+// ─── Graph ────────────────────────────────────────────────────────────────
+function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions?: (node: GraphNode) => React.ReactNode }) {
+  const { setCenter, getNodes } = useReactFlow();
+  const [exporting, setExporting] = useState(false);
+  const [hidden, setHidden] = useState<Set<EntityKind>>(new Set());
+  const [showSources, setShowSources] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
-  if (!graphData?.nodes?.length) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-        <div className="text-center">
-          <p className="font-medium">No relationship data available</p>
-          <p className="text-sm">Complete a scan to see the relationship graph</p>
-        </div>
-      </div>
-    );
-  }
+  const base = useMemo(() => (showSources ? graph : withoutSources(graph)), [graph, showSources]);
+  const positions = useMemo(() => layout(base.nodes, base.edges), [base]);
+  const byId = useMemo(() => new Map(base.nodes.map((n) => [n.id, n])), [base]);
 
-  const nodeData = selectedNode?.data as NodeData | undefined;
+  const visible = useMemo(() => {
+    const nodes = base.nodes.filter((n) => n.kind === 'target' || !hidden.has(n.kind));
+    const ids = new Set(nodes.map((n) => n.id));
+    return { nodes, edges: base.edges.filter((e) => ids.has(e.source) && ids.has(e.target)), ids };
+  }, [base, hidden]);
+
+  const neighbours = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const e of visible.edges) {
+      if (!map.has(e.source)) map.set(e.source, new Set());
+      if (!map.has(e.target)) map.set(e.target, new Set());
+      map.get(e.source)!.add(e.target);
+      map.get(e.target)!.add(e.source);
+    }
+    return map;
+  }, [visible]);
+
+  const q = query.trim().toLowerCase();
+  const matches = useMemo(
+    () => (q ? visible.nodes.filter((n) => n.label.toLowerCase().includes(q)) : []),
+    [visible, q]
+  );
+  const matchSet = useMemo(() => (q ? new Set(matches.map((m) => m.id)) : null), [q, matches]);
+  const selectSet = useMemo(
+    () => (selectedId ? new Set([selectedId, ...(neighbours.get(selectedId) ?? [])]) : null),
+    [selectedId, neighbours]
+  );
+
+  // Nodes live in React Flow state so their measured sizes survive updates.
+  // Rebuilding node objects on every hover made React Flow re-measure (and
+  // briefly hide) them, which fired mouseleave under the cursor: the flicker.
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<EntityData>>([]);
+
+  useEffect(() => {
+    setNodes(visible.nodes.map((n) => ({
+      id: n.id,
+      type: 'entity',
+      position: positions.get(n.id) ?? { x: 0, y: 0 },
+      zIndex: n.kind === 'target' ? 10 : n.kind === 'source' ? 5 : 1,
+      data: { ...n, dim: false, focus: false },
+    })));
+  }, [visible, positions, setNodes]);
+
+  // Selection and search only patch data on the existing node objects
+  useEffect(() => {
+    setNodes((prev) => prev.map((n) => {
+      const dim = (selectSet ? !selectSet.has(n.id) : false) || (matchSet ? !matchSet.has(n.id) : false);
+      const focus = !!matchSet?.has(n.id);
+      const selected = n.id === selectedId;
+      if (n.data.dim === dim && n.data.focus === focus && !!n.selected === selected) return n;
+      return { ...n, selected, data: { ...n.data, dim, focus } };
+    }));
+  }, [selectSet, matchSet, selectedId, setNodes]);
+
+  const rfEdges: Edge[] = useMemo(() => visible.edges.map((e) => {
+    const active = selectedId ? e.source === selectedId || e.target === selectedId : false;
+    const fromSource = byId.get(e.source)?.kind === 'source' || byId.get(e.target)?.kind === 'source';
+    const end = byId.get(e.target);
+    const stroke = !fromSource && end && end.kind !== 'target' ? kindColor(end.kind) : 'var(--trace)';
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: 'straight',
+      label: active ? e.label : undefined,
+      selectable: false,
+      focusable: false,
+      style: {
+        stroke,
+        strokeWidth: active ? 2 : fromSource ? 1 : 1.4,
+        strokeOpacity: selectedId ? (active ? 0.95 : 0.06) : fromSource ? 0.28 : 0.6,
+        strokeDasharray: fromSource ? '3 4' : undefined,
+      },
+      labelStyle: { fontSize: 11, fill: 'var(--foreground)' },
+      labelBgStyle: { fill: 'var(--card)', fillOpacity: 0.95 },
+      labelBgPadding: [4, 6] as [number, number],
+      labelBgBorderRadius: 4,
+      zIndex: 0, // always under nodes
+    };
+  }), [visible, byId, selectedId]);
+
+  // Hover highlight is pure CSS on the container: no node/edge objects change
+  const hoverCss = useMemo(() => {
+    if (!hoverId || selectedId) return '';
+    const keep = [hoverId, ...(neighbours.get(hoverId) ?? [])];
+    const nodeNot = keep.map((id) => `:not([data-id=${JSON.stringify(id)}])`).join('');
+    const edgeIds = visible.edges.filter((e) => e.source === hoverId || e.target === hoverId).map((e) => e.id);
+    const edgeNot = edgeIds.map((id) => `:not([data-id=${JSON.stringify(id)}])`).join('');
+    return `.osig-graph .react-flow__node${nodeNot}{opacity:.2}`
+      + `.osig-graph .react-flow__edge${edgeNot} path{stroke-opacity:.06}`
+      + edgeIds.map((id) => `.osig-graph .react-flow__edge[data-id=${JSON.stringify(id)}] path{stroke-opacity:.95;stroke-width:2}`).join('');
+  }, [hoverId, selectedId, neighbours, visible.edges]);
+
+  const focusNode = useCallback((id: string) => {
+    const p = positions.get(id);
+    setSelectedId(id);
+    if (p) setCenter(p.x, p.y, { zoom: 1.2, duration: 500 });
+  }, [positions, setCenter]);
+
+  // Whole graph (not just what's on screen) as a PNG, on the current theme's background
+  const exportPng = useCallback(async () => {
+    const viewportEl = document.querySelector<HTMLElement>('.osig-graph .react-flow__viewport');
+    if (!viewportEl) return;
+    setExporting(true);
+    // Capture the graph evenly lit, regardless of hover/selection/search dimming
+    const container = viewportEl.closest('.osig-graph');
+    container?.classList.add('osig-exporting');
+    try {
+      const width = 2400;
+      const height = 1600;
+      const bounds = getNodesBounds(getNodes());
+      const { x, y, zoom } = getViewportForBounds(bounds, width, height, 0.1, 2, 0.06);
+      const dataUrl = await toPng(viewportEl, {
+        backgroundColor: getComputedStyle(document.body).backgroundColor,
+        width,
+        height,
+        pixelRatio: 1,
+        style: { width: `${width}px`, height: `${height}px`, transform: `translate(${x}px, ${y}px) scale(${zoom})` },
+      });
+      const root = graph.nodes.find((n) => n.kind === 'target');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `osig-graph-${(root?.label ?? 'scan').replace(/[^a-z0-9.@_-]+/gi, '_')}.png`;
+      a.click();
+    } finally {
+      container?.classList.remove('osig-exporting');
+      setExporting(false);
+    }
+  }, [getNodes, graph.nodes]);
+
+  const toggleKind = (kind: EntityKind) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind); else next.add(kind);
+      return next;
+    });
+
+  const selected = selectedId ? byId.get(selectedId) : undefined;
+  const selectedLinks = selected
+    ? visible.edges
+        .filter((e) => e.source === selected.id || e.target === selected.id)
+        .map((e) => ({ edge: e, other: byId.get(e.source === selected.id ? e.target : e.source) }))
+        .filter((l): l is { edge: GraphEdge; other: GraphNode } => !!l.other)
+    : [];
+  const kinds = graph.kinds.filter((k) => k !== 'target' && k !== 'source');
 
   return (
-    <div className="w-full h-full flex gap-4 relative">
-      {/* Graph Canvas */}
-      <div className={cn('flex-1 rounded-lg border bg-background relative', selectedNode && 'md:w-2/3')}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeClick={onNodeClick}
-          onPaneClick={() => setSelectedNode(null)}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          attributionPosition="bottom-left"
-          className="bg-background"
-        >
-          <Background variant={BackgroundVariant.Dots} gap={12} size={1} className="opacity-30" />
-          <Controls className="!bg-background !border !rounded-lg" />
-          <Legend />
-        </ReactFlow>
+    <div className="flex h-full flex-col gap-3">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-64">
+          <MagnifyingGlassIcon aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) focusNode(matches[0].id); }}
+            placeholder="Find an entity"
+            aria-label="Find an entity in the graph"
+            className="h-8 bg-background pl-8 text-sm"
+          />
+        </div>
+        {q && <span className="text-xs text-muted-foreground">{matches.length} match{matches.length === 1 ? '' : 'es'}</span>}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show or hide entity kinds">
+          {kinds.map((kind) => {
+            const off = hidden.has(kind);
+            const { icon: Icon, label } = KIND[kind];
+            return (
+              <button
+                key={kind}
+                type="button"
+                aria-pressed={!off}
+                onClick={() => toggleKind(kind)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-trace',
+                  off ? 'border-dashed text-muted-foreground' : 'bg-background text-foreground'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" style={{ color: off ? undefined : kindColor(kind) }} />
+                {label}
+                <span className="tabular-nums text-muted-foreground">{graph.counts[kind]}</span>
+              </button>
+            );
+          })}
+        </div>
+        <Button variant="outline" size="sm" className="ml-auto h-8" onClick={exportPng} disabled={exporting}>
+          <ArrowDownTrayIcon className="mr-1.5 h-4 w-4" />
+          {exporting ? 'Exporting…' : 'Export PNG'}
+        </Button>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={showSources} onChange={(e) => setShowSources(e.target.checked)} className="accent-[var(--trace)]" />
+          Show sources
+        </label>
       </div>
 
-      {/* Side Panel */}
-      {selectedNode && nodeData && (
-        <Card className="w-full md:w-72 flex-shrink-0">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">{nodeData.label}</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedNode(null)} className="h-7 w-7 p-0">
+      <div className="relative flex min-h-0 flex-1 gap-3">
+        <div className="osig-graph relative min-w-0 flex-1 overflow-hidden rounded-xl border bg-background">
+          {hoverCss && <style>{hoverCss}</style>}
+          <ReactFlow
+            // Remount (and re-fit) when the layout changes: new findings or sources toggled
+            key={`${showSources ? 's' : 'e'}-${base.nodes.length}-${base.edges.length}`}
+            nodes={nodes}
+            onNodesChange={onNodesChange}
+            edges={rfEdges}
+            nodeTypes={nodeTypes}
+            nodeOrigin={[0.5, 0.5]}
+            onNodeClick={(_, n) => setSelectedId(n.id)}
+            onNodeMouseEnter={(_, n) => setHoverId(n.id)}
+            onNodeMouseLeave={() => setHoverId(null)}
+            onPaneClick={() => setSelectedId(null)}
+            nodesConnectable={false}
+            fitView
+            fitViewOptions={{ padding: 0.12 }}
+            minZoom={0.1}
+            maxZoom={2.5}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--grid)" />
+            <Controls showInteractive={false} className="!rounded-lg !border !shadow-none [&_button]:!border-border [&_button]:!bg-card [&_button]:!fill-foreground" />
+            <MiniMap
+              pannable
+              zoomable
+              className="!rounded-lg !border !bg-card"
+              maskColor="color-mix(in srgb, var(--background) 70%, transparent)"
+              nodeColor={(n) => {
+                const d = n.data as unknown as EntityData;
+                return d.risk === 'high' ? 'var(--destructive)' : kindColor(d.kind);
+              }}
+            />
+          </ReactFlow>
+          <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-card/90 px-2 py-1 text-xs text-muted-foreground">
+            {visible.nodes.length} entities · {visible.edges.length} links · ×n = reported by n sources
+          </p>
+        </div>
+
+        {/* Details */}
+        {selected && (
+          <aside className="absolute inset-y-0 right-0 z-10 flex w-full max-w-xs flex-col rounded-xl border bg-card shadow-lg md:static md:shadow-none" data-lenis-prevent>
+            <div className="flex items-start justify-between gap-2 border-b p-4">
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">{KIND[selected.kind]?.label.replace(/s$/, '') ?? selected.kind}</p>
+                <h3 className="break-words font-semibold">{selected.label}</h3>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setSelectedId(null)} aria-label="Close details">
                 <XMarkIcon className="h-4 w-4" />
               </Button>
             </div>
-          </CardHeader>
-          <Separator />
-          <CardContent className="p-0">
-            <ScrollArea className="h-[400px]">
-              <div className="p-4 space-y-3">
-                {/* Type & Status */}
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="capitalize gap-1">
-                    {nodeData.nodeType}
-                  </Badge>
-                  {nodeData.isRoot ? (
-                    <Badge variant="secondary">Scan Target</Badge>
-                  ) : nodeData.found ? (
-                    <Badge className="bg-green-500/15 text-green-600 border-green-500/30 border">✓ Found</Badge>
-                  ) : (
-                    <Badge variant="outline" className="opacity-60">Not found</Badge>
-                  )}
-                  {nodeData.riskLevel === 'high' && (
-                    <Badge className="bg-red-500/15 text-red-600 border-red-500/30 border">⚠ Risk</Badge>
-                  )}
-                </div>
-
-                {/* Source URL */}
-                {nodeData.sourceUrl && (
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Source URL</div>
-                    <a
-                      href={nodeData.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary hover:underline break-all"
-                    >
-                      {nodeData.sourceUrl}
-                    </a>
-                  </div>
-                )}
-
-                {/* Results breakdown */}
-                {!nodeData.isRoot && (nodeData as NodeData & { results?: { data_type: string; confidence: number; data: Record<string, unknown> }[] }).results && (
-                  <div>
-                    <div className="text-xs font-medium text-muted-foreground mb-2">
-                      Data ({nodeData.resultCount} result{nodeData.resultCount !== 1 ? 's' : ''})
-                    </div>
-                    <div className="space-y-2">
-                      {(selectedNode.data as { results?: { data_type: string; confidence: number; data: Record<string, unknown> }[] }).results?.map((r, i) => (
-                        <div key={i} className="rounded-md border bg-muted/30 p-2 text-xs">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium capitalize">{r.data_type.replace(/_/g, ' ')}</span>
-                            <span className="text-muted-foreground">{Math.round(r.confidence * 100)}% conf.</span>
-                          </div>
-                          {Object.entries(r.data || {}).slice(0, 4).map(([k, v]) => (
-                            <div key={k} className="text-muted-foreground">
-                              <span className="font-medium">{k}:</span>{' '}
-                              <span className="font-mono">{typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Connection count */}
+            <div className="flex-1 space-y-5 overflow-y-auto p-4 text-sm">
+              {renderActions && <div className="flex flex-wrap gap-2">{renderActions(selected)}</div>}
+              {(selected.kind === 'url' || selected.kind === 'account') && /^https?:\/\//.test(String(selected.details.url ?? selected.id.split(':').slice(1).join(':'))) && (
+                <a
+                  href={String(selected.details.url ?? selected.id.split(':').slice(1).join(':'))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-trace hover:underline"
+                >
+                  Open link <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                </a>
+              )}
+              {selected.sources.length > 0 && selected.kind !== 'source' && (
                 <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Connections</div>
-                  <div className="text-xs">
-                    {edges.filter(e => e.source === selectedNode.id || e.target === selectedNode.id).length} linked nodes
-                  </div>
+                  <p className="mb-1.5 text-xs text-muted-foreground">Reported by</p>
+                  <ul className="space-y-1">
+                    {selected.sources.map((s) => <li key={s}>{s}</li>)}
+                  </ul>
                 </div>
+              )}
+              {Object.keys(selected.details).length > 0 && (
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                  {Object.entries(selected.details).map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-muted-foreground">{k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()}</dt>
+                      <dd className="min-w-0 break-words font-mono text-xs leading-5">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Connections ({selectedLinks.length})</p>
+                <ul className="space-y-0.5">
+                  {selectedLinks.map(({ edge, other }) => {
+                    const { icon: Icon } = KIND[other.kind] ?? KIND.domain;
+                    return (
+                      <li key={edge.id}>
+                        <button
+                          type="button"
+                          onClick={() => focusNode(other.id)}
+                          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-accent"
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: kindColor(other.kind) }} />
+                          <span className="min-w-0 flex-1 truncate">{other.label}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{edge.label}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
+  );
+}
+
+interface RelationshipGraphProps {
+  scanId?: string;
+  investigationId?: string;
+  version?: number;
+  /** Extra buttons in the details panel for the selected entity (pivot, pin...) */
+  renderActions?: (node: GraphNode) => React.ReactNode;
+}
+
+export function RelationshipGraph({ scanId, investigationId, version = 0, renderActions }: RelationshipGraphProps) {
+  const { data, isLoading, error } = useEntityGraph({ scanId, investigationId }, version);
+
+  if (isLoading) {
+    return <Skeleton className="h-full w-full rounded-xl" />;
+  }
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center text-center">
+        <div>
+          <p className="font-medium text-destructive">The graph didn&apos;t load</p>
+          <p className="text-sm text-muted-foreground">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
+  if (!data || data.nodes.length <= 1) {
+    return (
+      <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+        <div>
+          <p className="font-medium text-foreground">Nothing to connect yet</p>
+          <p className="text-sm">Entities appear here as sources return findings.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ReactFlowProvider>
+      <GraphCanvas graph={data} renderActions={renderActions} />
+    </ReactFlowProvider>
   );
 }

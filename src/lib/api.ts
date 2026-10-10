@@ -2,9 +2,8 @@
 // API Service - Real Backend API Calls
 // ============================================
 
-import { apiCall } from './api-client';
+import { apiCall, apiClient } from './api-client';
 import type {
-    LoginCredentials,
     RegisterCredentials,
     AuthResponse,
     User,
@@ -16,6 +15,14 @@ import type {
     Report,
     CreateReportRequest,
     RelationshipGraph,
+    Investigation,
+    InvestigationSummary,
+    InvestigationPin,
+    Watch,
+    WatchChanges,
+    OptionalSource,
+    TargetType,
+    ScanType,
 } from '@/types';
 
 // ============ Auth API ============
@@ -28,8 +35,8 @@ export const api = {
             user: res.user,
             tokens: {
                 accessToken: res.accessToken,
-                refreshToken: '',
-                expiresIn: 3600
+                refreshToken: res.refreshToken,
+                expiresIn: res.expiresIn
             }
         };
     },
@@ -41,8 +48,8 @@ export const api = {
             user: res.user,
             tokens: {
                 accessToken: res.accessToken,
-                refreshToken: '',
-                expiresIn: 3600
+                refreshToken: res.refreshToken,
+                expiresIn: res.expiresIn
             }
         };
     },
@@ -122,10 +129,15 @@ export const api = {
     async downloadReport(reportId: string): Promise<Blob> {
         const { env } = await import('@/lib/env');
         const { useAuthStore } = await import('@/store/auth-store');
-        const token = useAuthStore.getState().tokens?.accessToken ?? '';
-        const response = await fetch(`${env.apiUrl}/reports/${reportId}/download`, {
+        const { refreshAccessToken } = await import('@/lib/api-client');
+        const get = (token: string) => fetch(`${env.apiUrl}/reports/${reportId}/download`, {
             headers: { Authorization: `Bearer ${token}` },
         });
+        let response = await get(useAuthStore.getState().tokens?.accessToken ?? '');
+        if (response.status === 401) {
+            const fresh = await refreshAccessToken().catch(() => null);
+            if (fresh) response = await get(fresh);
+        }
         if (!response.ok) throw new Error('Failed to download report');
         return response.blob();
     },
@@ -145,11 +157,85 @@ export const api = {
     },
 
     // Change password
-    async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-        return apiCall<void>('POST', '/auth/change-password', {
+    // Returns a fresh token pair for this session; other sessions are signed out
+    async changePassword(currentPassword: string, newPassword: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+        return apiCall('POST', '/auth/change-password', {
             currentPassword,
             newPassword,
         });
+    },
+
+    // ============ Investigations ============
+    async getInvestigations(): Promise<InvestigationSummary[]> {
+        return apiCall('GET', '/investigations');
+    },
+    async getInvestigation(id: string): Promise<Investigation> {
+        return apiCall('GET', `/investigations/${id}`);
+    },
+    async createInvestigation(data: { name: string; notes?: string; tags?: string[]; scanIds?: string[] }): Promise<Investigation> {
+        return apiCall('POST', '/investigations', data);
+    },
+    async updateInvestigation(id: string, data: { name?: string; notes?: string; tags?: string[] }): Promise<Investigation> {
+        return apiCall('PATCH', `/investigations/${id}`, data);
+    },
+    async deleteInvestigation(id: string): Promise<void> {
+        return apiCall('DELETE', `/investigations/${id}`);
+    },
+    async addScanToInvestigation(id: string, scanId: string): Promise<Investigation> {
+        return apiCall('POST', `/investigations/${id}/scans/${scanId}`);
+    },
+    async removeScanFromInvestigation(id: string, scanId: string): Promise<Investigation> {
+        return apiCall('DELETE', `/investigations/${id}/scans/${scanId}`);
+    },
+    async getInvestigationGraph(id: string): Promise<RelationshipGraph> {
+        return apiCall('GET', `/investigations/${id}/graph`);
+    },
+    async pinEntity(id: string, pin: { entityId: string; kind: string; label: string; note?: string }): Promise<InvestigationPin> {
+        return apiCall('POST', `/investigations/${id}/pins`, pin);
+    },
+    async unpinEntity(id: string, pinId: string): Promise<void> {
+        return apiCall('DELETE', `/investigations/${id}/pins/${pinId}`);
+    },
+    async downloadInvestigationReport(id: string, format: 'pdf' | 'json'): Promise<Blob> {
+        const res = await apiClient.get(`/investigations/${id}/report`, { params: { format }, responseType: 'blob' });
+        return res.data as Blob;
+    },
+    async pivotScan(scanId: string, data: { entityId: string; targetType: TargetType; targetValue: string; scanType: ScanType }): Promise<Scan> {
+        return apiCall('POST', `/scans/${scanId}/pivot`, data);
+    },
+
+    // ============ Watches ============
+    async getWatches(): Promise<Watch[]> {
+        return apiCall('GET', '/watches');
+    },
+    async createWatch(data: { targetType: TargetType; targetValue: string; scanType: ScanType; intervalHours: number }): Promise<Watch> {
+        return apiCall('POST', '/watches', data);
+    },
+    async updateWatch(id: string, data: { intervalHours?: number; active?: boolean }): Promise<Watch> {
+        return apiCall('PATCH', `/watches/${id}`, data);
+    },
+    async deleteWatch(id: string): Promise<void> {
+        return apiCall('DELETE', `/watches/${id}`);
+    },
+    async getWatchChanges(id: string, includeSearch = false): Promise<WatchChanges> {
+        return apiCall('GET', `/watches/${id}/changes${includeSearch ? '?include_search=true' : ''}`);
+    },
+
+    // ============ Meta ============
+    async getOptionalSources(): Promise<OptionalSource[]> {
+        return apiCall('GET', '/meta/sources');
+    },
+
+    // ============ Sign in with Google ============
+    async getAuthProviders(): Promise<{ google: boolean }> {
+        return apiCall('GET', '/auth/providers');
+    },
+    async googleExchange(code: string): Promise<AuthResponse> {
+        const res = await apiCall<any>('POST', '/auth/google/exchange', { code });
+        return { user: res.user, tokens: { accessToken: res.accessToken, refreshToken: res.refreshToken, expiresIn: res.expiresIn } };
+    },
+    async setPassword(newPassword: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
+        return apiCall('POST', '/auth/set-password', { newPassword });
     },
 };
 

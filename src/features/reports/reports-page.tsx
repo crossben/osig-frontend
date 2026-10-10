@@ -9,15 +9,9 @@ import {
   DocumentTextIcon,
   ArrowDownTrayIcon,
   PlusIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
   CodeBracketIcon,
-  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent} from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -27,13 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SkeletonTable } from '@/components/ui/skeleton-table';
-import { EmptyState } from '@/components/ui/empty-state';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   Dialog,
   DialogContent,
@@ -52,45 +40,22 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useReports, useCreateReport } from '@/hooks/use-api';
-import { api } from '@/lib/api';
+import { useReports, useCreateReport, useScans } from '@/hooks/use-api';
+import { downloadReportFile } from '@/lib/download-report';
+import { useToast } from '@/hooks/use-toast';
 import { ReportStatus, ReportFormat } from '@/types';
 import { cn } from '@/lib/utils';
 
-const statusConfig: Record<ReportStatus, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
-  generating: { label: 'Generating', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400', icon: ClockIcon },
-  ready: { label: 'Ready', color: 'bg-green-500/10 text-green-600 dark:text-green-400', icon: CheckCircleIcon },
-  failed: { label: 'Failed', color: 'bg-red-500/10 text-red-600 dark:text-red-400', icon: XCircleIcon },
+const statusConfig: Record<ReportStatus, { label: string; dot: string }> = {
+  generating: { label: 'Generating', dot: 'bg-trace animate-pulse' },
+  ready: { label: 'Ready', dot: 'bg-success' },
+  failed: { label: 'Failed', dot: 'bg-destructive' },
 };
 
 const formatConfig: Record<ReportFormat, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
-  pdf: { label: 'PDF', icon: DocumentTextIcon },
-  json: { label: 'JSON', icon: CodeBracketIcon },
+  pdf: { label: 'PDF report', icon: DocumentTextIcon },
+  json: { label: 'JSON data', icon: CodeBracketIcon },
 };
-
-function StatusBadge({ status }: { status: ReportStatus }) {
-  const config = statusConfig[status];
-  const Icon = config.icon;
-
-  return (
-    <Badge variant="secondary" className={cn('gap-1.5', config.color)}>
-      <Icon className={cn('h-3.5 w-3.5', status === 'generating' && 'animate-pulse')} />
-      {config.label}
-    </Badge>
-  );
-}
-
-function FormatBadge({ format }: { format: ReportFormat }) {
-  const config = formatConfig[format];
-  const Icon = config.icon;
-
-  return (
-    <Badge variant="outline" className="gap-1.5">
-      <Icon className="h-3.5 w-3.5" />
-      {config.label}
-    </Badge>
-  );
-}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -102,6 +67,9 @@ export function ReportsPage() {
   const { data, isLoading } = useReports();
   const reports = data?.reports || [];
   const createReportMutation = useCreateReport();
+  const { toast } = useToast();
+  const { data: scansData, isLoading: scansLoading } = useScans({ status: 'completed', limit: 100 });
+  const completedScans = scansData?.scans ?? [];
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newReport, setNewReport] = useState({
     scanId: '',
@@ -122,35 +90,27 @@ export function ReportsPage() {
 
   const handleDownload = async (report: { id: string; name: string; format: string }) => {
     try {
-      const blob = await api.downloadReport(report.id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${report.name}.${report.format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await downloadReportFile(report);
     } catch (error) {
-      console.error('Failed to download report', error);
+      toast({
+        variant: 'destructive',
+        title: 'Download failed',
+        description: error instanceof Error ? error.message : 'Could not download the report',
+      });
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
-          <p className="text-muted-foreground">
-            Download and manage your generated reports
-          </p>
-        </div>
+      <PageHeader
+        title="Reports"
+        description="Exports of your completed scans. PDFs list every finding; JSON holds the raw data."
+        actions={
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <PlusIcon className="h-4 w-4 mr-2" />
-              Generate Report
+              Generate report
             </Button>
           </DialogTrigger>
           <DialogContent>
@@ -162,13 +122,40 @@ export function ReportsPage() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="scanId">Scan ID</Label>
-                <Input
-                  id="scanId"
-                  placeholder="Enter scan ID"
+                <Label htmlFor="scanId">Scan</Label>
+                <Select
                   value={newReport.scanId}
-                  onChange={(e) => setNewReport({ ...newReport, scanId: e.target.value })}
-                />
+                  onValueChange={(scanId) => {
+                    const scan = completedScans.find(s => s.id === scanId);
+                    setNewReport({
+                      ...newReport,
+                      scanId,
+                      // Suggest a name unless the user already typed one
+                      name: newReport.name || (scan
+                        ? `${scan.targetValue} ${scan.createdAt.slice(0, 10)}`
+                        : ''),
+                    });
+                  }}
+                  disabled={completedScans.length === 0}
+                >
+                  <SelectTrigger id="scanId" className="w-full">
+                    <SelectValue placeholder={
+                      scansLoading ? 'Loading scans…'
+                        : completedScans.length === 0 ? 'No completed scans yet'
+                        : 'Choose a completed scan'
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {completedScans.map(scan => (
+                      <SelectItem key={scan.id} value={scan.id}>
+                        <span className="font-medium">{scan.targetValue}</span>
+                        <span className="text-muted-foreground ml-2 text-xs">
+                          {scan.targetType} · {scan.scanType} · {new Date(scan.createdAt).toLocaleString()}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Report Name</Label>
@@ -208,115 +195,86 @@ export function ReportsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Reports Table */}
-      <Card>
-        <CardContent className="p-0">
+      <div className="overflow-hidden rounded-2xl border bg-card">
           {isLoading ? (
             <div className="p-6">
               <SkeletonTable rows={5} columns={6} showHeader={true} />
             </div>
           ) : !reports || reports.length === 0 ? (
-            <EmptyState
-              icon={DocumentTextIcon}
-              title="No reports yet"
-              description="Generate a report from a completed scan to download and share your findings"
-              actionLabel="Generate Report"
-              onAction={() => setIsCreateDialogOpen(true)}
-            />
+            <div className="flex flex-col items-center px-4 py-16 text-center">
+              <h3 className="font-display text-xl font-semibold">No reports yet</h3>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Generate one from a completed scan, or use Export on any scan page.
+              </p>
+              <Button className="mt-5" onClick={() => setIsCreateDialogOpen(true)}>Generate a report</Button>
+            </div>
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Report Name</TableHead>
-                  <TableHead>Format</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Report</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="pr-6 text-right"><span className="sr-only">Download</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {reports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-primary/10">
-                          <DocumentTextIcon className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{report.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            Scan ID: {report.scanId}
+                {reports.map((report) => {
+                  const format = formatConfig[report.format];
+                  const status = statusConfig[report.status];
+                  const created = new Date(report.createdAt);
+                  return (
+                    <TableRow key={report.id}>
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-trace">
+                            <format.icon className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{report.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {format.label} ·{' '}
+                              <a href={`#/scan?id=${report.scanId}`} className="hover:underline">open scan</a>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <FormatBadge format={report.format} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={report.status} />
-                    </TableCell>
-                    <TableCell>
-                      {report.fileSize ? formatFileSize(report.fileSize) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {new Date(report.createdAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(report.createdAt).toLocaleTimeString()}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {report.status === 'ready' && (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => handleDownload(report)}
-                            >
-                              <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                              Download
-                            </Button>
-                          </>
-                        )}
-                        {report.status === 'generating' && (
-                          <Button size="sm" variant="outline" disabled>
-                            <ClockIcon className="h-4 w-4 mr-2 animate-pulse" />
-                            Processing...
-                          </Button>
-                        )}
-                        {report.status === 'failed' && (
-                          <Button size="sm" variant="outline" disabled>
-                            <XCircleIcon className="h-4 w-4 mr-2" />
-                            Failed
-                          </Button>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              •••
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="text-destructive">
-                              <TrashIcon className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-2 text-sm">
+                          <span aria-hidden className={cn('h-2 w-2 rounded-full', status.dot)} />
+                          {status.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {report.fileSize ? formatFileSize(report.fileSize) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{created.toLocaleDateString()}</div>
+                        <div className="text-xs text-muted-foreground">{created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      </TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={report.status !== 'ready'}
+                          onClick={() => handleDownload(report)}
+                        >
+                          <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

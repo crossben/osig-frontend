@@ -8,6 +8,12 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bricolage);
+  --color-trace: var(--trace);
+  --color-trace-soft: var(--trace-soft);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-success: var(--success);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,77 +49,92 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── Trace board palette ────────────────────────────────────
+   paper     #E9EDF2  survey paper (page)
+   surface   #F7F9FB  raised panels
+   ink       #13233F  text + primary actions
+   trace     #3B5B8C  connecting lines, focus, links
+   highlight #F2E85C  evidence marker; only on findings
+   ───────────────────────────────────────────────────────── */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(0.99 0.002 240);
-  --foreground: oklch(0.15 0.02 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.15 0.02 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0.02 240);
-  /* Blue primary color */
-  --primary: oklch(0.45 0.18 250);
-  --primary-foreground: oklch(0.99 0.005 250);
-  --secondary: oklch(0.96 0.01 250);
-  --secondary-foreground: oklch(0.25 0.03 250);
-  --muted: oklch(0.96 0.01 250);
-  --muted-foreground: oklch(0.50 0.02 250);
-  --accent: oklch(0.94 0.02 250);
-  --accent-foreground: oklch(0.25 0.03 250);
-  --destructive: oklch(0.55 0.22 25);
-  --border: oklch(0.91 0.01 250);
-  --input: oklch(0.91 0.01 250);
-  --ring: oklch(0.45 0.18 250);
-  /* Chart colors - blue-based palette */
-  --chart-1: oklch(0.55 0.22 250);
-  --chart-2: oklch(0.65 0.15 200);
-  --chart-3: oklch(0.70 0.12 170);
-  --chart-4: oklch(0.75 0.10 300);
-  --chart-5: oklch(0.60 0.18 280);
-  --sidebar: oklch(0.98 0.005 250);
-  --sidebar-foreground: oklch(0.15 0.02 240);
-  --sidebar-primary: oklch(0.45 0.18 250);
-  --sidebar-primary-foreground: oklch(0.99 0.005 250);
-  --sidebar-accent: oklch(0.94 0.03 250);
-  --sidebar-accent-foreground: oklch(0.25 0.03 250);
-  --sidebar-border: oklch(0.91 0.01 250);
-  --sidebar-ring: oklch(0.45 0.18 250);
+  --radius: 0.5rem;
+  --background: #E9EDF2;
+  --foreground: #13233F;
+  --card: #F7F9FB;
+  --card-foreground: #13233F;
+  --popover: #F7F9FB;
+  --popover-foreground: #13233F;
+  --primary: #13233F;
+  --primary-foreground: #F7F9FB;
+  --secondary: #DCE2EA;
+  --secondary-foreground: #13233F;
+  --muted: #DCE2EA;
+  --muted-foreground: #56647B;
+  --accent: #DDE5F0;
+  --accent-foreground: #13233F;
+  --destructive: #B4372F;
+  --border: #CDD5E0;
+  --input: #C3CCD9;
+  --ring: #3B5B8C;
+  --trace: #3B5B8C;
+  --trace-soft: rgb(59 91 140 / 0.18);
+  --highlight: #F2E85C;
+  --highlight-foreground: #13233F;
+  --success: #2F7A5B;
+  --grid: rgb(19 35 63 / 0.055);
+  --chart-1: #3B5B8C;
+  --chart-2: #2F7A5B;
+  --chart-3: #C9A227;
+  --chart-4: #7A5C9E;
+  --chart-5: #B4372F;
+  --sidebar: #F7F9FB;
+  --sidebar-foreground: #13233F;
+  --sidebar-primary: #13233F;
+  --sidebar-primary-foreground: #F7F9FB;
+  --sidebar-accent: #E3E9F1;
+  --sidebar-accent-foreground: #13233F;
+  --sidebar-border: #CDD5E0;
+  --sidebar-ring: #3B5B8C;
 }
 
 .dark {
-  --background: oklch(0.12 0.02 250);
-  --foreground: oklch(0.96 0.005 250);
-  --card: oklch(0.16 0.02 250);
-  --card-foreground: oklch(0.96 0.005 250);
-  --popover: oklch(0.16 0.02 250);
-  --popover-foreground: oklch(0.96 0.005 250);
-  /* Blue primary color - lighter for dark mode */
-  --primary: oklch(0.60 0.18 250);
-  --primary-foreground: oklch(0.12 0.02 250);
-  --secondary: oklch(0.22 0.02 250);
-  --secondary-foreground: oklch(0.96 0.005 250);
-  --muted: oklch(0.22 0.02 250);
-  --muted-foreground: oklch(0.65 0.02 250);
-  --accent: oklch(0.25 0.03 250);
-  --accent-foreground: oklch(0.96 0.005 250);
-  --destructive: oklch(0.60 0.20 25);
-  --border: oklch(0.25 0.02 250);
-  --input: oklch(0.20 0.02 250);
-  --ring: oklch(0.60 0.18 250);
-  /* Chart colors for dark mode */
-  --chart-1: oklch(0.60 0.20 250);
-  --chart-2: oklch(0.70 0.14 200);
-  --chart-3: oklch(0.75 0.11 170);
-  --chart-4: oklch(0.65 0.15 300);
-  --chart-5: oklch(0.55 0.18 280);
-  --sidebar: oklch(0.14 0.02 250);
-  --sidebar-foreground: oklch(0.96 0.005 250);
-  --sidebar-primary: oklch(0.60 0.18 250);
-  --sidebar-primary-foreground: oklch(0.12 0.02 250);
-  --sidebar-accent: oklch(0.22 0.03 250);
-  --sidebar-accent-foreground: oklch(0.96 0.005 250);
-  --sidebar-border: oklch(0.25 0.02 250);
-  --sidebar-ring: oklch(0.60 0.18 250);
+  --background: #0F1A2E;
+  --foreground: #E6ECF5;
+  --card: #16233B;
+  --card-foreground: #E6ECF5;
+  --popover: #16233B;
+  --popover-foreground: #E6ECF5;
+  --primary: #E6ECF5;
+  --primary-foreground: #0F1A2E;
+  --secondary: #1E2D49;
+  --secondary-foreground: #E6ECF5;
+  --muted: #1E2D49;
+  --muted-foreground: #93A2BB;
+  --accent: #213252;
+  --accent-foreground: #E6ECF5;
+  --destructive: #E0675E;
+  --border: #26375A;
+  --input: #2C3F64;
+  --ring: #7FA0D6;
+  --trace: #7FA0D6;
+  --trace-soft: rgb(127 160 214 / 0.2);
+  --highlight: #E8DD4A;
+  --highlight-foreground: #0F1A2E;
+  --success: #5DBE94;
+  --grid: rgb(230 236 245 / 0.045);
+  --chart-1: #7FA0D6;
+  --chart-2: #5DBE94;
+  --chart-3: #E8C547;
+  --chart-4: #B596DB;
+  --chart-5: #E0675E;
+  --sidebar: #13203A;
+  --sidebar-foreground: #E6ECF5;
+  --sidebar-primary: #E6ECF5;
+  --sidebar-primary-foreground: #0F1A2E;
+  --sidebar-accent: #1E2D49;
+  --sidebar-accent-foreground: #E6ECF5;
+  --sidebar-border: #26375A;
+  --sidebar-ring: #7FA0D6;
 }
 
 @layer base {
@@ -122,8 +143,39 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
   }
 }
+
+/* Survey-paper grid: faint, only behind page canvases */
+.paper-grid {
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Highlighter mark: used ONLY for findings / evidence */
+.mark {
+  background-image: linear-gradient(transparent 12%, var(--highlight) 12%, var(--highlight) 88%, transparent 88%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  color: var(--highlight-foreground);
+  padding-inline: 0.15em;
+  border-radius: 2px;
+  box-decoration-break: clone;
+}
+
+/* Lenis */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
 
 /* Custom scrollbar styling */
 .custom-scrollbar::-webkit-scrollbar {
@@ -157,8 +209,26 @@
   cursor: pointer;
 }
 
-.react-flow__edge-path {
-  stroke-width: 2;
+/* Entity graph: edges and their labels never take the pointer (prevents hover flicker) */
+.osig-graph .react-flow__edge,
+.osig-graph .react-flow__edgelabel-renderer,
+.osig-graph .react-flow__edge-textwrapper {
+  pointer-events: none;
+}
+.osig-graph .react-flow__node {
+  transition: opacity 150ms ease;
+}
+/* PNG export: undo dimming so the image shows the whole graph */
+.osig-exporting .react-flow__node,
+.osig-exporting .react-flow__node .opacity-20 {
+  opacity: 1 !important;
+  transition: none !important;
+}
+.osig-exporting .react-flow__edge path {
+  stroke-opacity: 0.55 !important;
+}
+.osig-exporting .react-flow__edge-textwrapper {
+  display: none;
 }
 
 /* Animation utilities */
@@ -178,10 +248,10 @@
 /* Status indicator animations */
 @keyframes scan-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 oklch(0.45 0.18 250 / 0.4);
+    box-shadow: 0 0 0 0 rgb(59 91 140 / 0.4);
   }
   50% {
-    box-shadow: 0 0 0 8px oklch(0.45 0.18 250 / 0);
+    box-shadow: 0 0 0 8px rgb(59 91 140 / 0);
   }
 }
 
