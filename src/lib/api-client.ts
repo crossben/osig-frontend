@@ -118,13 +118,14 @@ function toSnake(obj: any): any {
 export async function apiCall<T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   url: string,
-  data?: unknown
+  data?: unknown,
+  opts?: { rawBody?: boolean }
 ): Promise<T> {
   try {
     const response = await apiClient.request<T>({
       method,
       url,
-      data: data ? toSnake(data) : undefined,
+      data: data ? (opts?.rawBody ? data : toSnake(data)) : undefined,
     });
     return toCamel(response.data);
   } catch (error: any) {
@@ -140,7 +141,9 @@ export async function apiCall<T>(
               return field && field !== 'body' ? `${field}: ${msg}` : msg;
             }).join('\n')
           : JSON.stringify(detail);
-      throw new Error(message, { cause: error });
+      const err = new Error(message, { cause: error }) as Error & { status?: number };
+      err.status = error.response.status;
+      throw err;
     }
     throw error;
   }

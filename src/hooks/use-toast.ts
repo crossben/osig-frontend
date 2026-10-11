@@ -3,10 +3,29 @@
 // Inspired by react-hot-toast library
 import * as React from "react"
 
-import type {
-  ToastActionElement,
-  ToastProps,
+import {
+  ToastAction,
+  type ToastActionElement,
+  type ToastProps,
 } from "@/components/ui/toast"
+import { getLanguage, translate } from "@/lib/i18n"
+
+// Plan limits answer 402 with a detail ending in this sentence: every toast
+// carrying it gets a way to the plans
+const UPGRADE_HINT = "Upgrade your plan under Billing."
+
+function withPlansAction(t: Toast): Toast {
+  if (t.action || typeof t.description !== "string" || !t.description.includes(UPGRADE_HINT)) return t
+  const label = translate(getLanguage(), "See plans")
+  return {
+    ...t,
+    action: React.createElement(
+      ToastAction,
+      { altText: label, onClick: () => { window.location.hash = "#/billing" } },
+      label,
+    ) as unknown as ToastActionElement,
+  }
+}
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -142,7 +161,8 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+function toast(input: Toast) {
+  const props = withPlansAction(input)
   const id = genId()
 
   const update = (props: ToasterToast) =>

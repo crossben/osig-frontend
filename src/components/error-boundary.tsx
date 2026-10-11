@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import { useT } from '@/lib/i18n';
 
 interface ErrorBoundaryProps {
     children: React.ReactNode;
@@ -44,24 +45,29 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             }
 
             // Default fallback UI
-            return (
-                <div className="min-h-[400px] flex items-center justify-center p-6">
-                    <div className="text-center max-w-md">
-                        <h2 className="text-2xl font-bold mb-2">Something went wrong</h2>
-                        <p className="text-muted-foreground mb-6">
-                            {this.state.error.message || 'An unexpected error occurred'}
-                        </p>
-                        <button
-                            onClick={this.reset}
-                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-                        >
-                            Try Again
-                        </button>
-                    </div>
-                </div>
-            );
+            return <DefaultFallback error={this.state.error} reset={this.reset} />;
         }
 
         return this.props.children;
     }
+}
+
+function DefaultFallback({ error, reset }: { error: Error; reset: () => void }) {
+    const t = useT();
+            return (
+                <div className="min-h-[400px] flex items-center justify-center p-6">
+                    <div className="text-center max-w-md">
+                        <h2 className="text-2xl font-bold mb-2">{t('Something went wrong')}</h2>
+                        <p className="text-muted-foreground mb-6">
+                            {error.message || t('An unexpected error occurred')}
+                        </p>
+                        <button
+                            onClick={reset}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                        >
+                            {t('Try Again')}
+                        </button>
+                    </div>
+                </div>
+            );
 }

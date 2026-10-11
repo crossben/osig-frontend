@@ -23,22 +23,53 @@ import type {
     OptionalSource,
     TargetType,
     ScanType,
+    MfaStep,
+    MapPoint,
+    TimelineEvent,
+    ScanComparison,
+    ExportFormat,
+    BulkScanResult,
+    InvestigationMember,
+    ApiKey,
+    AdminUser,
+    AdminStats,
+    AuditEntry,
+    MailEntry,
+    BillingPlans,
+    BillingMe,
+    BillingPeriod,
+    CheckoutResponse,
+    Payment,
+    AdminPayment,
+    PlanSlug,
+    PlanPatch,
+    BillingPlan,
 } from '@/types';
+
+/** Sign-in answers either with tokens or, with 2FA on, with a second step */
+const toAuth = (res: any): AuthResponse | MfaStep =>
+    res.mfaRequired
+        ? { mfaRequired: true, mfaToken: res.mfaToken }
+        : { user: res.user, tokens: { accessToken: res.accessToken, refreshToken: res.refreshToken, expiresIn: res.expiresIn } };
+
+export const isMfaStep = (r: AuthResponse | MfaStep): r is MfaStep => 'mfaRequired' in r;
+
+async function download(path: string, params?: Record<string, string>): Promise<Blob> {
+    const res = await apiClient.get(path, { params, responseType: 'blob' });
+    return res.data as Blob;
+}
 
 // ============ Auth API ============
 
 export const api = {
     // Login user
-    async login(email: string, password: string): Promise<AuthResponse> {
-        const res = await apiCall<any>('POST', '/auth/login', { email, password });
-        return {
-            user: res.user,
-            tokens: {
-                accessToken: res.accessToken,
-                refreshToken: res.refreshToken,
-                expiresIn: res.expiresIn
-            }
-        };
+    async login(email: string, password: string): Promise<AuthResponse | MfaStep> {
+        return toAuth(await apiCall<any>('POST', '/auth/login', { email, password }));
+    },
+
+    // Second sign-in step: authenticator or recovery code
+    async verifyMfa(mfaToken: string, code: string): Promise<AuthResponse> {
+        return toAuth(await apiCall<any>('POST', '/auth/2fa/verify', { mfaToken, code })) as AuthResponse;
     },
 
     // Register new user
@@ -230,12 +261,138 @@ export const api = {
     async getAuthProviders(): Promise<{ google: boolean }> {
         return apiCall('GET', '/auth/providers');
     },
-    async googleExchange(code: string): Promise<AuthResponse> {
-        const res = await apiCall<any>('POST', '/auth/google/exchange', { code });
-        return { user: res.user, tokens: { accessToken: res.accessToken, refreshToken: res.refreshToken, expiresIn: res.expiresIn } };
+    async googleExchange(code: string): Promise<AuthResponse | MfaStep> {
+        return toAuth(await apiCall<any>('POST', '/auth/google/exchange', { code }));
     },
     async setPassword(newPassword: string): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
         return apiCall('POST', '/auth/set-password', { newPassword });
+    },
+
+    // ============ Account security ============
+    async verifyEmail(token: string): Promise<User> {
+        return apiCall('POST', '/auth/verify-email', { token });
+    },
+    async resendVerification(): Promise<void> {
+        return apiCall('POST', '/auth/resend-verification');
+    },
+    async forgotPassword(email: string): Promise<void> {
+        return apiCall('POST', '/auth/forgot-password', { email });
+    },
+    async resetPassword(token: string, newPassword: string): Promise<void> {
+        return apiCall('POST', '/auth/reset-password', { token, newPassword });
+    },
+    async logoutAll(): Promise<void> {
+        return apiCall('POST', '/auth/logout-all');
+    },
+    async setupMfa(): Promise<{ secret: string; otpauthUri: string; qrSvg: string }> {
+        return apiCall('POST', '/auth/2fa/setup');
+    },
+    async enableMfa(code: string): Promise<{ recoveryCodes: string[] }> {
+        return apiCall('POST', '/auth/2fa/enable', { code });
+    },
+    async disableMfa(code: string): Promise<void> {
+        return apiCall('POST', '/auth/2fa/disable', { code });
+    },
+    async deleteMyData(): Promise<Record<string, number>> {
+        return apiCall('POST', '/auth/delete-my-data', { confirm: 'DELETE' });
+    },
+    async deleteAccount(email: string): Promise<void> {
+        return apiCall('POST', '/auth/delete-account', { confirm: email });
+    },
+
+    // ============ API keys ============
+    async getApiKeys(): Promise<ApiKey[]> {
+        return apiCall('GET', '/api-keys');
+    },
+    async createApiKey(name: string): Promise<ApiKey & { key: string }> {
+        return apiCall('POST', '/api-keys', { name });
+    },
+    async revokeApiKey(id: string): Promise<void> {
+        return apiCall('DELETE', `/api-keys/${id}`);
+    },
+
+    // ============ Analysis ============
+    async getScanMap(scanId: string): Promise<{ points: MapPoint[] }> {
+        return apiCall('GET', `/scans/${scanId}/map`);
+    },
+    async getScanTimeline(scanId: string): Promise<{ events: TimelineEvent[] }> {
+        return apiCall('GET', `/scans/${scanId}/timeline`);
+    },
+    async compareScans(scanId: string, otherId: string, includeSearch = false): Promise<ScanComparison> {
+        return apiCall('GET', `/scans/${scanId}/compare/${otherId}${includeSearch ? '?include_search=true' : ''}`);
+    },
+    async exportScan(scanId: string, format: ExportFormat): Promise<Blob> {
+        return download(`/scans/${scanId}/export`, { format });
+    },
+    async getInvestigationMap(id: string): Promise<{ points: MapPoint[] }> {
+        return apiCall('GET', `/investigations/${id}/map`);
+    },
+    async getInvestigationTimeline(id: string): Promise<{ events: TimelineEvent[] }> {
+        return apiCall('GET', `/investigations/${id}/timeline`);
+    },
+    async exportInvestigation(id: string, format: ExportFormat): Promise<Blob> {
+        return download(`/investigations/${id}/export`, { format });
+    },
+
+    // ============ Sharing & bulk ============
+    async getMembers(id: string): Promise<InvestigationMember[]> {
+        return apiCall('GET', `/investigations/${id}/members`);
+    },
+    async addMember(id: string, email: string, role: 'viewer' | 'editor'): Promise<InvestigationMember[]> {
+        return apiCall('POST', `/investigations/${id}/members`, { email, role });
+    },
+    async removeMember(id: string, userId: string): Promise<void> {
+        return apiCall('DELETE', `/investigations/${id}/members/${userId}`);
+    },
+    async bulkScan(data: { name: string; csv: string; scanType: ScanType; disclaimerAccepted: boolean }): Promise<BulkScanResult> {
+        return apiCall('POST', '/investigations/bulk', data);
+    },
+
+    // ============ Admin ============
+    async adminStats(): Promise<AdminStats> {
+        return apiCall('GET', '/admin/stats');
+    },
+    async adminUsers(q = ''): Promise<AdminUser[]> {
+        return apiCall('GET', `/admin/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    },
+    async adminUpdateUser(id: string, data: Partial<Pick<AdminUser, 'plan' | 'isActive' | 'isSuperuser' | 'emailVerified'>>): Promise<AdminUser> {
+        return apiCall('PATCH', `/admin/users/${id}`, data);
+    },
+    async adminAudit(action = ''): Promise<AuditEntry[]> {
+        return apiCall('GET', `/admin/audit${action ? `?action=${encodeURIComponent(action)}` : ''}`);
+    },
+    async adminMail(): Promise<MailEntry[]> {
+        return apiCall('GET', '/admin/mail');
+    },
+
+    // ============ Billing ============
+    async getBillingPlans(): Promise<BillingPlans> {
+        return apiCall('GET', '/billing/plans');
+    },
+    async getBillingMe(): Promise<BillingMe> {
+        return apiCall('GET', '/billing/me');
+    },
+    async createCheckout(plan: PlanSlug, period: BillingPeriod, country: string): Promise<CheckoutResponse> {
+        return apiCall('POST', '/billing/checkout', { plan, period, country });
+    },
+    async getPayment(reference: string): Promise<Payment> {
+        return apiCall('GET', `/billing/payments/${encodeURIComponent(reference)}`);
+    },
+    async adminGrantPlan(userId: string, plan: PlanSlug, days?: number): Promise<unknown> {
+        return apiCall('POST', `/billing/admin/users/${userId}/grant`, days ? { plan, days } : { plan });
+    },
+    async adminPayments(): Promise<AdminPayment[]> {
+        return apiCall('GET', '/billing/admin/payments');
+    },
+    async adminUpdatePlan(slug: PlanSlug, patch: PlanPatch): Promise<BillingPlan> {
+        // Not through apiCall's snake_casing: currency codes (XOF, USD) are keys
+        // under prices and must keep their case
+        const snake = (o: Record<string, unknown>) =>
+            Object.fromEntries(Object.entries(o).map(([k, v]) => [k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`), v]));
+        const body: Record<string, unknown> = snake({ ...patch, limits: undefined, prices: undefined });
+        if (patch.prices) body.prices = patch.prices;
+        if (patch.limits) body.limits = snake(patch.limits);
+        return apiCall('PATCH', `/billing/admin/plans/${slug}`, body, { rawBody: true });
     },
 };
 

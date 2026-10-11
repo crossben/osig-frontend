@@ -10,17 +10,24 @@ import { useAuthStore } from '@/store';
 import { useQuotaStatus } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
 import { PasswordForm, ProfileForm } from './account-forms';
+import { SecuritySection } from './security-section';
+import { ApiKeysSection } from './api-keys-section';
+import { PreferencesSection } from './preferences-section';
+import { DangerZone } from './danger-zone';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useT, useLocale } from '@/lib/i18n';
 
 const planNames: Record<string, string> = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' };
 
 export function ProfilePage() {
   const { user } = useAuthStore();
   const { data: quota } = useQuotaStatus();
+  const t = useT();
+  const locale = useLocale();
 
   if (!user) {
-    return <p className="py-16 text-center text-muted-foreground">Loading your account…</p>;
+    return <p className="py-16 text-center text-muted-foreground">{t('Loading your account…')}</p>;
   }
 
   const unlimited = quota ? quota.dailyLimit >= 100000 : false;
@@ -28,17 +35,17 @@ export function ProfilePage() {
   const initial = (user.fullName || user.username || 'U')[0]?.toUpperCase();
 
   const details = [
-    { label: 'Username', value: user.username },
-    { label: 'Email', value: user.email },
-    { label: 'Member since', value: new Date(user.createdAt).toLocaleDateString([], { dateStyle: 'long' }) },
-    { label: 'Sign-in methods', value: [user.hasPassword !== false && 'Email and password', user.googleLinked && 'Google'].filter(Boolean).join(' · ') || '—' },
+    { label: t('Username'), value: user.username },
+    { label: t('Email'), value: user.email },
+    { label: t('Member since'), value: new Date(user.createdAt).toLocaleDateString(locale, { dateStyle: 'long' }) },
+    { label: t('Sign-in methods'), value: [user.hasPassword !== false && t('Email and password'), user.googleLinked && 'Google'].filter(Boolean).join(' · ') || '—' },
   ];
 
   return (
     <div className="w-full">
-      <PageHeader title="Account" description="Your details and today's scan allowance." />
+      <PageHeader title={t('Account')} description={t('Your details, security, keys and preferences.')} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] [&>*]:min-w-0">
         <section className="rounded-2xl border bg-card p-6 md:p-8">
           <div className="flex items-center gap-5">
             <Avatar className="h-16 w-16">
@@ -63,22 +70,22 @@ export function ProfilePage() {
 
         <section className="rounded-2xl border bg-card p-6 md:p-8">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-display text-xl font-semibold">Plan</h2>
+            <h2 className="font-display text-xl font-semibold">{t('Plan')}</h2>
             <span className="rounded-full bg-primary px-3 py-0.5 text-sm font-medium text-primary-foreground">
-              {(user.plan && planNames[user.plan]) || user.plan || 'Free'}
+              {t((user.plan && planNames[user.plan]) || user.plan || 'Free')}
             </span>
           </div>
 
           {!quota ? (
-            <p className="mt-6 text-sm text-muted-foreground">Loading usage…</p>
+            <p className="mt-6 text-sm text-muted-foreground">{t('Loading usage…')}</p>
           ) : unlimited ? (
-            <p className="mt-6">Unlimited scans.</p>
+            <p className="mt-6">{t('Unlimited scans.')}</p>
           ) : (
             <>
               <p className="mt-6 font-display text-5xl font-bold tabular-nums">
                 {quota.remaining}
                 <span className="ml-2 font-sans text-base font-normal text-muted-foreground">
-                  of {quota.dailyLimit} scans left today
+                  {t('of {limit} scans left today', { limit: quota.dailyLimit })}
                 </span>
               </p>
               <div className="mt-5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
@@ -88,40 +95,54 @@ export function ProfilePage() {
                 />
               </div>
               <p className="mt-3 text-sm text-muted-foreground">
-                {quota.usedToday} used. The count resets at midnight UTC.
+                {t('{n} used. The count resets at midnight UTC.', { n: quota.usedToday })}
               </p>
             </>
           )}
         </section>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid gap-6 xl:grid-cols-2 [&>*]:min-w-0">
         <section className="rounded-2xl border bg-card p-6 md:p-8">
-          <h2 className="font-display text-xl font-semibold">Your details</h2>
-          <p className="mb-6 mt-1 text-sm text-muted-foreground">Shown in the sidebar and on reports you export.</p>
+          <h2 className="font-display text-xl font-semibold">{t('Your details')}</h2>
+          <p className="mb-6 mt-1 text-sm text-muted-foreground">{t('Shown in the sidebar and on reports you export.')}</p>
           <ProfileForm />
         </section>
         <section className="rounded-2xl border bg-card p-6 md:p-8">
-          <h2 className="font-display text-xl font-semibold">Password</h2>
-          <p className="mb-6 mt-1 text-sm text-muted-foreground">Changing it signs out your other devices.</p>
+          <h2 className="font-display text-xl font-semibold">{t('Password')}</h2>
+          <p className="mb-6 mt-1 text-sm text-muted-foreground">{t('Changing it signs out your other devices.')}</p>
           <PasswordForm />
         </section>
       </div>
 
+      <div className="mt-6 grid gap-6 xl:grid-cols-2 [&>*]:min-w-0">
+        <SecuritySection />
+        <PreferencesSection key={user.id} />
+      </div>
+
+      <div className="mt-6">
+        <ApiKeysSection />
+      </div>
+
       <section className="mt-6 rounded-2xl border bg-card p-6 md:p-8">
-        <h2 className="font-display text-xl font-semibold">Optional data sources</h2>
+        <h2 className="font-display text-xl font-semibold">{t('Optional data sources')}</h2>
         <p className="mb-5 mt-1 text-sm text-muted-foreground">
-          These sources need an API key or a switch set by whoever runs this OSIG server, in its <span className="font-mono">.env</span> file.
+          {t('These sources need an API key or a switch set by whoever runs this OSIG server, in its .env file.')}
         </p>
         <OptionalSources />
       </section>
+
+      <div className="mt-6">
+        <DangerZone />
+      </div>
     </div>
   );
 }
 
 function OptionalSources() {
+  const t = useT();
   const { data } = useQuery({ queryKey: ['optionalSources'], queryFn: () => api.getOptionalSources() });
-  if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (!data) return <p className="text-sm text-muted-foreground">{t('Loading…')}</p>;
   return (
     <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {data.map((src) => (
@@ -130,7 +151,7 @@ function OptionalSources() {
             <span className="font-semibold">{src.name}</span>
             <span className={cn('inline-flex items-center gap-1.5 text-xs', src.enabled ? 'text-success' : 'text-muted-foreground')}>
               <span aria-hidden className={cn('h-2 w-2 rounded-full', src.enabled ? 'bg-success' : 'bg-muted-foreground/50')} />
-              {src.enabled ? 'On' : 'Off'}
+              {src.enabled ? t('On') : t('Off')}
             </span>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{src.adds}</p>

@@ -18,6 +18,8 @@ import {
   ArrowRightOnRectangleIcon,
   FolderIcon,
   EyeIcon,
+  ShieldCheckIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,9 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { Logo } from '@/components/brand/logo';
 import { SmoothScroll } from '@/components/motion/smooth-scroll';
 import { GSAP_EASE, RISE_PX, isReducedMotion } from '@/lib/motion';
+import { VerifyEmailBanner } from './verify-banner';
+import { LanguageToggle } from '@/components/language-toggle';
+import { useT } from '@/lib/i18n';
 
 gsap.registerPlugin(useGSAP);
 
@@ -47,8 +52,10 @@ const navItems = [
   { label: 'Investigations', href: '/investigation', icon: FolderIcon },
   { label: 'Watches', href: '/watches', icon: EyeIcon },
   { label: 'Reports', href: '/reports', icon: DocumentTextIcon },
+  { label: 'Billing', href: '/billing', icon: CreditCardIcon },
   { label: 'Account', href: '/profile', icon: UserCircleIcon },
 ];
+const adminItem = { label: 'Admin', href: '/admin', icon: ShieldCheckIcon };
 
 
 function PlanBadge({ plan }: { plan: string }) {
@@ -70,6 +77,7 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const t = useT();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('/');
   const user = useAuthStore((state) => state.user);
@@ -144,6 +152,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <Logo />
         </a>
         <div className="ml-auto flex items-center gap-2">
+          <LanguageToggle />
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -171,7 +180,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
                 <ArrowRightOnRectangleIcon className="mr-2 h-4 w-4" />
-                Log out
+                {t('Log out')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -207,7 +216,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               aria-hidden
               className="pointer-events-none invisible absolute left-3 top-0 w-[3px] rounded-full bg-trace"
             />
-            {navItems.map((item) => {
+            {(user.isSuperuser ? [...navItems, adminItem] : navItems).map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (
@@ -224,7 +233,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   )}
                 >
                   <Icon className="h-5 w-5" />
-                  <span>{item.label}</span>
+                  <span>{t(item.label)}</span>
                 </a>
               );
             })}
@@ -234,8 +243,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {quota && quota.dailyLimit < 100000 && (
             <div className="mx-3 mb-3 rounded-lg border bg-background/60 px-3 py-2.5">
               <div className="flex items-baseline justify-between text-xs">
-                <span className="text-muted-foreground">Scans left today</span>
-                <span className="font-semibold">{quota.remaining} of {quota.dailyLimit}</span>
+                <span className="text-muted-foreground">{t('Scans left today')}</span>
+                <span className="font-semibold">{t('{remaining} of {limit}', { remaining: quota.remaining, limit: quota.dailyLimit })}</span>
               </div>
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
                 <div
@@ -278,7 +287,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
                   <ArrowRightOnRectangleIcon className="mr-2 h-4 w-4" />
-                  Log out
+                  {t('Log out')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -303,11 +312,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Desktop Header */}
           <header className="hidden md:flex sticky top-0 z-30 h-14 items-center gap-4 border-b bg-background/85 backdrop-blur px-8">
             <div className="flex-1" />
+            <LanguageToggle />
             <ThemeToggle />
           </header>
 
           {/* Page Content */}
           <div ref={pageRef} className="flex-1 p-4 md:p-8">
+            {user.emailVerified === false && <VerifyEmailBanner />}
             <ErrorBoundary>
               {children}
             </ErrorBoundary>

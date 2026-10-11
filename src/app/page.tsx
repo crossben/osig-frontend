@@ -23,6 +23,12 @@ import { ReportsPage } from '@/features/reports/reports-page';
 import { InvestigationsPage } from '@/features/investigations/investigations-page';
 import { InvestigationDetailPage } from '@/features/investigations/investigation-detail-page';
 import { WatchesPage } from '@/features/watches/watches-page';
+import { VerifyEmailPage } from '@/features/auth/verify-email-page';
+import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/password-reset-pages';
+import { BulkScanPage } from '@/features/scans/bulk-scan-page';
+import { ComparePage } from '@/features/scans/compare-page';
+import { AdminPage } from '@/features/admin/admin-page';
+import { BillingPage } from '@/features/billing/billing-page';
 
 // Custom hook for mounting detection without setState in effect
 function useMounted() {
@@ -96,6 +102,14 @@ function AppContent() {
     return <OAuthCallbackPage />;
   }
 
+  // Links from emails: work whether or not this browser is signed in
+  if (path === '/verify-email') return <VerifyEmailPage />;
+  if (path === '/reset-password') return <ResetPasswordPage />;
+  if (path === '/forgot-password') {
+    if (isAuthenticated) return <RedirectHome />;
+    return <ForgotPasswordPage />;
+  }
+
   if (path === '/login' || path === '/register') {
     if (isAuthenticated) return <RedirectHome />;
     return path === '/login' ? <LoginPage /> : <RegisterPage />;
@@ -121,6 +135,14 @@ function AppContent() {
         return params.id ? <InvestigationDetailPage key={params.id} /> : <InvestigationsPage />;
       case '/watches':
         return <WatchesPage />;
+      case '/bulk':
+        return <BulkScanPage />;
+      case '/compare':
+        return <ComparePage />;
+      case '/admin':
+        return <AdminPage />;
+      case '/billing':
+        return <BillingPage />;
       case '/profile':
         return <ProfilePage />;
       case '/scan':

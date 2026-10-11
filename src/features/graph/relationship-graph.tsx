@@ -65,29 +65,30 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEntityGraph } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 import type { EntityKind, GraphEdge, GraphNode, RelationshipGraph as GraphData } from '@/types';
 
 // ─── Kind presentation ────────────────────────────────────────────────────
-const KIND: Record<EntityKind, { label: string; icon: React.ElementType }> = {
-  target: { label: 'Target', icon: MagnifyingGlassIcon },
-  source: { label: 'Sources', icon: CircleStackIcon },
-  ip: { label: 'IP addresses', icon: CpuChipIcon },
-  subdomain: { label: 'Subdomains', icon: GlobeAltIcon },
-  domain: { label: 'Domains', icon: GlobeAltIcon },
-  nameserver: { label: 'Nameservers', icon: ServerStackIcon },
-  mailserver: { label: 'Mail servers', icon: EnvelopeIcon },
-  email: { label: 'Emails', icon: AtSymbolIcon },
-  network: { label: 'Networks', icon: SignalIcon },
-  location: { label: 'Locations', icon: MapPinIcon },
-  organization: { label: 'Organizations', icon: BuildingOffice2Icon },
-  service: { label: 'Services', icon: ShieldCheckIcon },
-  url: { label: 'URLs', icon: LinkIcon },
-  account: { label: 'Accounts', icon: UserCircleIcon },
-  breach: { label: 'Breaches', icon: ExclamationTriangleIcon },
-  port: { label: 'Open ports', icon: ServerIcon },
-  phone: { label: 'Phones', icon: PhoneIcon },
-  person: { label: 'People', icon: UserCircleIcon },
-  lookalike: { label: 'Lookalikes', icon: ExclamationTriangleIcon },
+const KIND: Record<EntityKind, { label: string; one: string; icon: React.ElementType }> = {
+  target: { label: 'Target', one: 'Target', icon: MagnifyingGlassIcon },
+  source: { label: 'Sources', one: 'Source', icon: CircleStackIcon },
+  ip: { label: 'IP addresses', one: 'IP address', icon: CpuChipIcon },
+  subdomain: { label: 'Subdomains', one: 'Subdomain', icon: GlobeAltIcon },
+  domain: { label: 'Domains', one: 'Domain', icon: GlobeAltIcon },
+  nameserver: { label: 'Nameservers', one: 'Nameserver', icon: ServerStackIcon },
+  mailserver: { label: 'Mail servers', one: 'Mail server', icon: EnvelopeIcon },
+  email: { label: 'Emails', one: 'Email', icon: AtSymbolIcon },
+  network: { label: 'Networks', one: 'Network', icon: SignalIcon },
+  location: { label: 'Locations', one: 'Location', icon: MapPinIcon },
+  organization: { label: 'Organizations', one: 'Organization', icon: BuildingOffice2Icon },
+  service: { label: 'Services', one: 'Service', icon: ShieldCheckIcon },
+  url: { label: 'URLs', one: 'URL', icon: LinkIcon },
+  account: { label: 'Accounts', one: 'Account', icon: UserCircleIcon },
+  breach: { label: 'Breaches', one: 'Breach', icon: ExclamationTriangleIcon },
+  port: { label: 'Open ports', one: 'Open port', icon: ServerIcon },
+  phone: { label: 'Phones', one: 'Phone', icon: PhoneIcon },
+  person: { label: 'People', one: 'Person', icon: UserCircleIcon },
+  lookalike: { label: 'Lookalikes', one: 'Lookalike', icon: ExclamationTriangleIcon },
 };
 
 // One hue per kind; fills/borders are mixed from it so it reads in both themes
@@ -114,6 +115,30 @@ const KIND_COLOR: Record<EntityKind, string> = {
 };
 const kindColor = (kind: EntityKind) => KIND_COLOR[kind] ?? 'var(--trace)';
 
+// ─── Labels ───────────────────────────────────────────────────────────────
+// Long labels are cut with an ellipsis (full text in the title attribute), and the
+// layout's collision radius is sized from the label so neighbours don't overlap.
+type SizeClass = 'target' | 'source' | 'entity';
+const sizeClass = (kind: EntityKind): SizeClass => (kind === 'target' || kind === 'source' ? kind : 'entity');
+const MAX_LABEL: Record<SizeClass, number> = { target: 32, source: 26, entity: 30 };
+// Approximate glyph width (px) at each kind's font size, plus fixed chrome: icon, gap, padding, border
+const CHAR_PX: Record<SizeClass, number> = { target: 8.4, source: 6.6, entity: 6.1 };
+const CHROME_PX: Record<SizeClass, number> = { target: 52, source: 40, entity: 34 };
+const MIN_RADIUS: Record<SizeClass, number> = { target: 90, source: 70, entity: 46 };
+
+function shortLabel(kind: EntityKind, label: string) {
+  const max = MAX_LABEL[sizeClass(kind)];
+  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+}
+
+function collisionRadius(node: GraphNode) {
+  const c = sizeClass(node.kind);
+  const chars = Math.min(node.label.length, MAX_LABEL[c]);
+  const badge = c === 'entity' && node.sources.length > 1 ? 22 : 0;
+  const width = CHROME_PX[c] + chars * CHAR_PX[c] + badge + (node.pinned ? 16 : 0);
+  return Math.max(MIN_RADIUS[c], width / 2 + 10);
+}
+
 // ─── Node ─────────────────────────────────────────────────────────────────
 type EntityData = GraphNode & { dim: boolean; focus: boolean } & Record<string, unknown>;
 
@@ -121,6 +146,7 @@ type EntityData = GraphNode & { dim: boolean; focus: boolean } & Record<string, 
 const centerHandle = '!h-px !w-px !min-h-0 !min-w-0 !border-0 !bg-transparent !left-1/2 !top-1/2';
 
 const EntityNode = memo(function EntityNode({ data, selected }: NodeProps<Node<EntityData>>) {
+  const t = useT();
   const { icon: Icon } = KIND[data.kind] ?? KIND.domain;
   const corroborated = data.kind !== 'source' && data.kind !== 'target' && data.sources.length > 1;
   const entity = data.kind !== 'target' && data.kind !== 'source';
@@ -144,12 +170,14 @@ const EntityNode = memo(function EntityNode({ data, selected }: NodeProps<Node<E
         className={cn('shrink-0', data.kind === 'target' ? 'h-4 w-4' : 'h-3.5 w-3.5', data.kind === 'source' && 'text-trace')}
         style={entity ? { color: 'var(--kc)' } : undefined}
       />
-      <span className={cn('truncate', data.kind === 'target' && 'font-mono')}>{data.label}</span>
+      <span className={cn('truncate', data.kind === 'target' && 'font-mono')} title={data.label.length > MAX_LABEL[sizeClass(data.kind)] ? data.label : undefined}>
+        {shortLabel(data.kind, data.label)}
+      </span>
       {data.pinned && (
-        <BookmarkSolidIcon aria-label="Pinned" className="h-3 w-3 shrink-0 text-[var(--kc)]" />
+        <BookmarkSolidIcon aria-label={t('Pinned')} className="h-3 w-3 shrink-0 text-[var(--kc)]" />
       )}
       {corroborated && (
-        <span className="mark shrink-0 rounded text-[10px] font-semibold" title={`Reported by ${data.sources.length} sources`}>
+        <span className="mark shrink-0 rounded text-[10px] font-semibold" title={t('Reported by {n} sources', { n: data.sources.length })}>
           ×{data.sources.length}
         </span>
       )}
@@ -161,27 +189,28 @@ const EntityNode = memo(function EntityNode({ data, selected }: NodeProps<Node<E
 const nodeTypes = { entity: EntityNode };
 
 // ─── Layout ───────────────────────────────────────────────────────────────
-type SimNode = SimulationNodeDatum & { id: string; kind: EntityKind };
+type SimNode = SimulationNodeDatum & { id: string; kind: EntityKind; r: number };
 
 function layout(nodes: GraphNode[], edges: GraphEdge[]): Map<string, { x: number; y: number }> {
   // Deterministic seed: kinds on rings so runs are stable and clusters form by kind
   const kindIndex = new Map<string, number>();
   const sim: SimNode[] = nodes.map((n, i) => {
-    if (n.kind === 'target') return { id: n.id, kind: n.kind, x: 0, y: 0, fx: 0, fy: 0 };
+    const r = collisionRadius(n);
+    if (n.kind === 'target') return { id: n.id, kind: n.kind, r, x: 0, y: 0, fx: 0, fy: 0 };
     const k = kindIndex.get(n.kind) ?? kindIndex.size;
     kindIndex.set(n.kind, k);
     const ring = n.kind === 'source' ? 180 : 420;
     const angle = (i / nodes.length) * Math.PI * 2;
-    return { id: n.id, kind: n.kind, x: Math.cos(angle) * ring, y: Math.sin(angle) * ring };
+    return { id: n.id, kind: n.kind, r, x: Math.cos(angle) * ring, y: Math.sin(angle) * ring };
   });
   const links: SimulationLinkDatum<SimNode>[] = edges.map((e) => ({ source: e.source, target: e.target }));
 
   forceSimulation(sim)
     .force('link', forceLink<SimNode, SimulationLinkDatum<SimNode>>(links).id((d) => d.id)
-      .distance((l) => ((l.source as SimNode).kind === 'target' ? 190 : 120))
+      .distance((l) => Math.max((l.source as SimNode).kind === 'target' ? 190 : 120, (l.source as SimNode).r + (l.target as SimNode).r))
       .strength(0.7))
     .force('charge', forceManyBody<SimNode>().strength((d) => (d.kind === 'source' ? -900 : -320)))
-    .force('collide', forceCollide<SimNode>().radius((d) => (d.kind === 'target' ? 90 : d.kind === 'source' ? 80 : 62)))
+    .force('collide', forceCollide<SimNode>().radius((d) => d.r).strength(0.9).iterations(2))
     .force('x', forceX(0).strength(0.03))
     .force('y', forceY(0).strength(0.03))
     .force('center', forceCenter(0, 0))
@@ -218,6 +247,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const t = useT();
 
   const base = useMemo(() => (showSources ? graph : withoutSources(graph)), [graph, showSources]);
   const positions = useMemo(() => layout(base.nodes, base.edges), [base]);
@@ -287,7 +317,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
       source: e.source,
       target: e.target,
       type: 'straight',
-      label: active ? e.label : undefined,
+      label: active && e.label ? t(e.label) : undefined,
       selectable: false,
       focusable: false,
       style: {
@@ -302,7 +332,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
       labelBgBorderRadius: 4,
       zIndex: 0, // always under nodes
     };
-  }), [visible, byId, selectedId]);
+  }), [visible, byId, selectedId, t]);
 
   // Hover highlight is pure CSS on the container: no node/edge objects change
   const hoverCss = useMemo(() => {
@@ -379,13 +409,13 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && matches[0]) focusNode(matches[0].id); }}
-            placeholder="Find an entity"
-            aria-label="Find an entity in the graph"
+            placeholder={t('Find an entity')}
+            aria-label={t('Find an entity in the graph')}
             className="h-8 bg-background pl-8 text-sm"
           />
         </div>
-        {q && <span className="text-xs text-muted-foreground">{matches.length} match{matches.length === 1 ? '' : 'es'}</span>}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show or hide entity kinds">
+        {q && <span className="text-xs text-muted-foreground">{t(matches.length === 1 ? '{n} match' : '{n} matches', { n: matches.length })}</span>}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('Show or hide entity kinds')}>
           {kinds.map((kind) => {
             const off = hidden.has(kind);
             const { icon: Icon, label } = KIND[kind];
@@ -401,7 +431,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
                 )}
               >
                 <Icon className="h-3.5 w-3.5" style={{ color: off ? undefined : kindColor(kind) }} />
-                {label}
+                {t(label)}
                 <span className="tabular-nums text-muted-foreground">{graph.counts[kind]}</span>
               </button>
             );
@@ -409,11 +439,11 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
         </div>
         <Button variant="outline" size="sm" className="ml-auto h-8" onClick={exportPng} disabled={exporting}>
           <ArrowDownTrayIcon className="mr-1.5 h-4 w-4" />
-          {exporting ? 'Exporting…' : 'Export PNG'}
+          {exporting ? t('Exporting…') : t('Export PNG')}
         </Button>
         <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={showSources} onChange={(e) => setShowSources(e.target.checked)} className="accent-[var(--trace)]" />
-          Show sources
+          {t('Show sources')}
         </label>
       </div>
 
@@ -453,7 +483,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
             />
           </ReactFlow>
           <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-card/90 px-2 py-1 text-xs text-muted-foreground">
-            {visible.nodes.length} entities · {visible.edges.length} links · ×n = reported by n sources
+            {t('{nodes} entities · {edges} links · ×n = reported by n sources', { nodes: visible.nodes.length, edges: visible.edges.length })}
           </p>
         </div>
 
@@ -462,10 +492,10 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
           <aside className="absolute inset-y-0 right-0 z-10 flex w-full max-w-xs flex-col rounded-xl border bg-card shadow-lg md:static md:shadow-none" data-lenis-prevent>
             <div className="flex items-start justify-between gap-2 border-b p-4">
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{KIND[selected.kind]?.label.replace(/s$/, '') ?? selected.kind}</p>
+                <p className="text-xs text-muted-foreground">{KIND[selected.kind] ? t(KIND[selected.kind].one) : selected.kind}</p>
                 <h3 className="break-words font-semibold">{selected.label}</h3>
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setSelectedId(null)} aria-label="Close details">
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setSelectedId(null)} aria-label={t('Close details')}>
                 <XMarkIcon className="h-4 w-4" />
               </Button>
             </div>
@@ -478,12 +508,12 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-trace hover:underline"
                 >
-                  Open link <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                  {t('Open link')} <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                 </a>
               )}
               {selected.sources.length > 0 && selected.kind !== 'source' && (
                 <div>
-                  <p className="mb-1.5 text-xs text-muted-foreground">Reported by</p>
+                  <p className="mb-1.5 text-xs text-muted-foreground">{t('Reported by')}</p>
                   <ul className="space-y-1">
                     {selected.sources.map((s) => <li key={s}>{s}</li>)}
                   </ul>
@@ -500,7 +530,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
                 </dl>
               )}
               <div>
-                <p className="mb-1.5 text-xs text-muted-foreground">Connections ({selectedLinks.length})</p>
+                <p className="mb-1.5 text-xs text-muted-foreground">{t('Connections ({n})', { n: selectedLinks.length })}</p>
                 <ul className="space-y-0.5">
                   {selectedLinks.map(({ edge, other }) => {
                     const { icon: Icon } = KIND[other.kind] ?? KIND.domain;
@@ -513,7 +543,7 @@ function GraphCanvas({ graph, renderActions }: { graph: GraphData; renderActions
                         >
                           <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: kindColor(other.kind) }} />
                           <span className="min-w-0 flex-1 truncate">{other.label}</span>
-                          <span className="shrink-0 text-xs text-muted-foreground">{edge.label}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{edge.label ? t(edge.label) : null}</span>
                         </button>
                       </li>
                     );
@@ -538,6 +568,7 @@ interface RelationshipGraphProps {
 
 export function RelationshipGraph({ scanId, investigationId, version = 0, renderActions }: RelationshipGraphProps) {
   const { data, isLoading, error } = useEntityGraph({ scanId, investigationId }, version);
+  const t = useT();
 
   if (isLoading) {
     return <Skeleton className="h-full w-full rounded-xl" />;
@@ -546,7 +577,7 @@ export function RelationshipGraph({ scanId, investigationId, version = 0, render
     return (
       <div className="flex h-full items-center justify-center text-center">
         <div>
-          <p className="font-medium text-destructive">The graph didn&apos;t load</p>
+          <p className="font-medium text-destructive">{t('The graph didn’t load')}</p>
           <p className="text-sm text-muted-foreground">{error.message}</p>
         </div>
       </div>
@@ -556,8 +587,8 @@ export function RelationshipGraph({ scanId, investigationId, version = 0, render
     return (
       <div className="flex h-full items-center justify-center text-center text-muted-foreground">
         <div>
-          <p className="font-medium text-foreground">Nothing to connect yet</p>
-          <p className="text-sm">Entities appear here as sources return findings.</p>
+          <p className="font-medium text-foreground">{t('Nothing to connect yet')}</p>
+          <p className="text-sm">{t('Entities appear here as sources return findings.')}</p>
         </div>
       </div>
     );

@@ -45,6 +45,7 @@ import { downloadReportFile } from '@/lib/download-report';
 import { useToast } from '@/hooks/use-toast';
 import { ReportStatus, ReportFormat } from '@/types';
 import { cn } from '@/lib/utils';
+import { useLocale, useT } from '@/lib/i18n';
 
 const statusConfig: Record<ReportStatus, { label: string; dot: string }> = {
   generating: { label: 'Generating', dot: 'bg-trace animate-pulse' },
@@ -68,6 +69,8 @@ export function ReportsPage() {
   const reports = data?.reports || [];
   const createReportMutation = useCreateReport();
   const { toast } = useToast();
+  const t = useT();
+  const locale = useLocale();
   const { data: scansData, isLoading: scansLoading } = useScans({ status: 'completed', limit: 100 });
   const completedScans = scansData?.scans ?? [];
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -94,8 +97,8 @@ export function ReportsPage() {
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Download failed',
-        description: error instanceof Error ? error.message : 'Could not download the report',
+        title: t('Download failed'),
+        description: error instanceof Error ? error.message : t('Could not download the report'),
       });
     }
   };
@@ -103,26 +106,26 @@ export function ReportsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Reports"
-        description="Exports of your completed scans. PDFs list every finding; JSON holds the raw data."
+        title={t('Reports')}
+        description={t('Exports of your completed scans. PDFs list every finding; JSON holds the raw data.')}
         actions={
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <PlusIcon className="h-4 w-4 mr-2" />
-              Generate report
+              {t('Generate report')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Generate New Report</DialogTitle>
+              <DialogTitle>{t('Generate New Report')}</DialogTitle>
               <DialogDescription>
-                Create a report from one of your completed scans
+                {t('Create a report from one of your completed scans')}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="scanId">Scan</Label>
+                <Label htmlFor="scanId">{t('Scan')}</Label>
                 <Select
                   value={newReport.scanId}
                   onValueChange={(scanId) => {
@@ -140,9 +143,9 @@ export function ReportsPage() {
                 >
                   <SelectTrigger id="scanId" className="w-full">
                     <SelectValue placeholder={
-                      scansLoading ? 'Loading scans…'
-                        : completedScans.length === 0 ? 'No completed scans yet'
-                        : 'Choose a completed scan'
+                      scansLoading ? t('Loading scans…')
+                        : completedScans.length === 0 ? t('No completed scans yet')
+                        : t('Choose a completed scan')
                     } />
                   </SelectTrigger>
                   <SelectContent>
@@ -150,7 +153,7 @@ export function ReportsPage() {
                       <SelectItem key={scan.id} value={scan.id}>
                         <span className="font-medium">{scan.targetValue}</span>
                         <span className="text-muted-foreground ml-2 text-xs">
-                          {scan.targetType} · {scan.scanType} · {new Date(scan.createdAt).toLocaleString()}
+                          {t(scan.targetType)} · {t(scan.scanType)} · {new Date(scan.createdAt).toLocaleString(locale)}
                         </span>
                       </SelectItem>
                     ))}
@@ -158,16 +161,16 @@ export function ReportsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="name">Report Name</Label>
+                <Label htmlFor="name">{t('Report Name')}</Label>
                 <Input
                   id="name"
-                  placeholder="My Report"
+                  placeholder={t('My Report')}
                   value={newReport.name}
                   onChange={(e) => setNewReport({ ...newReport, name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="format">Format</Label>
+                <Label htmlFor="format">{t('Format')}</Label>
                 <Select
                   value={newReport.format}
                   onValueChange={(value) => setNewReport({ ...newReport, format: value as ReportFormat })}
@@ -176,21 +179,21 @@ export function ReportsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pdf">PDF Document</SelectItem>
-                    <SelectItem value="json">JSON Data</SelectItem>
+                    <SelectItem value="pdf">{t('PDF Document')}</SelectItem>
+                    <SelectItem value="json">{t('JSON Data')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
+                {t('Cancel')}
               </Button>
               <Button
                 onClick={handleCreateReport}
                 disabled={!newReport.scanId || !newReport.name || createReportMutation.isPending}
               >
-                {createReportMutation.isPending ? 'Generating...' : 'Generate'}
+                {createReportMutation.isPending ? t('Generating...') : t('Generate')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -206,21 +209,21 @@ export function ReportsPage() {
             </div>
           ) : !reports || reports.length === 0 ? (
             <div className="flex flex-col items-center px-4 py-16 text-center">
-              <h3 className="font-display text-xl font-semibold">No reports yet</h3>
+              <h3 className="font-display text-xl font-semibold">{t('No reports yet')}</h3>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Generate one from a completed scan, or use Export on any scan page.
+                {t('Generate one from a completed scan, or use Export on any scan page.')}
               </p>
-              <Button className="mt-5" onClick={() => setIsCreateDialogOpen(true)}>Generate a report</Button>
+              <Button className="mt-5" onClick={() => setIsCreateDialogOpen(true)}>{t('Generate a report')}</Button>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6">Report</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="pr-6 text-right"><span className="sr-only">Download</span></TableHead>
+                  <TableHead className="pl-6">{t('Report')}</TableHead>
+                  <TableHead>{t('Status')}</TableHead>
+                  <TableHead>{t('Size')}</TableHead>
+                  <TableHead>{t('Created')}</TableHead>
+                  <TableHead className="pr-6 text-right"><span className="sr-only">{t('Download')}</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -238,8 +241,8 @@ export function ReportsPage() {
                           <div className="min-w-0">
                             <div className="truncate font-medium">{report.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {format.label} ·{' '}
-                              <a href={`#/scan?id=${report.scanId}`} className="hover:underline">open scan</a>
+                              {t(format.label)} ·{' '}
+                              <a href={`#/scan?id=${report.scanId}`} className="hover:underline">{t('open scan')}</a>
                             </div>
                           </div>
                         </div>
@@ -247,15 +250,15 @@ export function ReportsPage() {
                       <TableCell>
                         <span className="inline-flex items-center gap-2 text-sm">
                           <span aria-hidden className={cn('h-2 w-2 rounded-full', status.dot)} />
-                          {status.label}
+                          {t(status.label)}
                         </span>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {report.fileSize ? formatFileSize(report.fileSize) : '—'}
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm">{created.toLocaleDateString()}</div>
-                        <div className="text-xs text-muted-foreground">{created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-sm">{created.toLocaleDateString(locale)}</div>
+                        <div className="text-xs text-muted-foreground">{created.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</div>
                       </TableCell>
                       <TableCell className="pr-6 text-right">
                         <Button
@@ -265,7 +268,7 @@ export function ReportsPage() {
                           onClick={() => handleDownload(report)}
                         >
                           <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                          Download
+                          {t('Download')}
                         </Button>
                       </TableCell>
                     </TableRow>

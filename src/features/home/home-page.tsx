@@ -13,8 +13,11 @@ import { Button } from '@/components/ui/button';
 import { SmoothScroll } from '@/components/motion/smooth-scroll';
 import { Reveal } from '@/components/motion/reveal';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { LanguageToggle } from '@/components/language-toggle';
+import { useT } from '@/lib/i18n';
 import { GSAP_EASE, isReducedMotion } from '@/lib/motion';
 import { TraceHero } from './trace-hero';
+import { PricingSection } from './pricing-section';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -65,6 +68,7 @@ const steps = [
 
 export function HomePage() {
   const stepsRef = useRef<HTMLOListElement>(null);
+  const t = useT();
 
   // The connector between steps inks in as the section scrolls past
   useGSAP(() => {
@@ -89,9 +93,10 @@ export function HomePage() {
             <Logo size="lg" />
           </a>
           <div className="ml-auto flex items-center gap-1.5">
+            <LanguageToggle />
             <ThemeToggle />
-            <Button variant="ghost" onClick={goLogin}>Sign in</Button>
-            <Button onClick={goRegister}>Create account</Button>
+            <Button variant="ghost" onClick={goLogin}>{t('Sign in')}</Button>
+            <Button onClick={goRegister}>{t('Create account')}</Button>
           </div>
         </div>
       </header>
@@ -100,18 +105,17 @@ export function HomePage() {
       <section className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-20 pt-14 md:px-8 lg:grid-cols-[1fr_1.15fr] lg:pt-20">
         <div data-hero-copy className="max-w-xl">
           <h1 className="font-display text-[clamp(2.6rem,5.5vw,4.6rem)] font-bold leading-[1.02]">
-            See what the public internet already knows.
+            {t('See what the public internet already knows.')}
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-            OSIG checks an email, username, domain or phone number against dozens of public
-            sources at once, then lays out every finding with the place it came from.
+            {t('OSIG checks an email, username, domain or phone number against dozens of public sources at once, then lays out every finding with the place it came from.')}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Button size="lg" onClick={goRegister}>Start a free scan</Button>
-            <Button size="lg" variant="outline" onClick={goLogin}>Sign in</Button>
+            <Button size="lg" onClick={goRegister}>{t('Start a free scan')}</Button>
+            <Button size="lg" variant="outline" onClick={goLogin}>{t('Sign in')}</Button>
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
-            Five scans a day on the free plan. Public sources only, nothing behind a login.
+            {t('Five scans a day on the free plan. Public sources only, nothing behind a login.')}
           </p>
         </div>
         <TraceHero />
@@ -121,19 +125,19 @@ export function HomePage() {
       <section className="border-t bg-card/60">
         <div className="mx-auto max-w-7xl px-4 py-20 md:px-8">
           <Reveal className="max-w-2xl">
-            <h2 className="font-display text-3xl font-bold md:text-4xl">What a scan checks</h2>
+            <h2 className="font-display text-3xl font-bold md:text-4xl">{t('What a scan checks')}</h2>
             <p className="mt-3 text-muted-foreground">
-              Each target type runs its own set of sources. These are the ones running today.
-            </p>
+              {t('Each target type runs its own set of sources. These are the ones running today.')}
+          </p>
           </Reveal>
           <Reveal stagger className="mt-12 divide-y border-y">
             {coverage.map((row) => (
               <div key={row.type} className="grid gap-4 py-7 md:grid-cols-[14rem_1fr_1fr] md:gap-10">
-                <h3 className="font-display text-xl font-semibold">{row.type}</h3>
-                <p className="text-muted-foreground leading-relaxed">{row.finds}</p>
+                <h3 className="font-display text-xl font-semibold">{t(row.type)}</h3>
+                <p className="text-muted-foreground leading-relaxed">{t(row.finds)}</p>
                 <ul className="flex flex-wrap content-start gap-1.5">
                   {row.sources.map((s) => (
-                    <li key={s} className="rounded-md border bg-background px-2 py-0.5 text-sm">{s}</li>
+                    <li key={s} className="rounded-md border bg-background px-2 py-0.5 text-sm">{t(s)}</li>
                   ))}
                 </ul>
               </div>
@@ -145,7 +149,7 @@ export function HomePage() {
       {/* How it works */}
       <section className="mx-auto max-w-7xl px-4 py-20 md:px-8">
         <Reveal>
-          <h2 className="font-display text-3xl font-bold md:text-4xl">From target to report</h2>
+          <h2 className="font-display text-3xl font-bold md:text-4xl">{t('From target to report')}</h2>
         </Reveal>
         <ol ref={stepsRef} className="relative mt-12 grid gap-10 md:grid-cols-4 md:gap-6">
           <span
@@ -158,8 +162,8 @@ export function HomePage() {
               <span className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-trace bg-background font-display text-sm font-bold text-trace">
                 {i + 1}
               </span>
-              <h3 className="mt-5 font-display text-lg font-semibold">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+              <h3 className="mt-5 font-display text-lg font-semibold">{t(step.title)}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t(step.body)}</p>
             </li>
           ))}
         </ol>
@@ -169,44 +173,45 @@ export function HomePage() {
       <section className="border-t bg-card/60">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 md:grid-cols-[1fr_1.4fr] md:px-8">
           <Reveal>
-            <h2 className="font-display text-3xl font-bold md:text-4xl">Ground rules</h2>
+            <h2 className="font-display text-3xl font-bold md:text-4xl">{t('Ground rules')}</h2>
             <p className="mt-3 text-muted-foreground">
-              OSIG is for people who have a legitimate reason to look: security teams checking their own
-              exposure, researchers, journalists, and anyone auditing their own footprint.
-            </p>
+              {t('OSIG is for people who have a legitimate reason to look: security teams checking their own exposure, researchers, journalists, and anyone auditing their own footprint.')}
+          </p>
           </Reveal>
           <Reveal stagger as="ul" className="space-y-6">
             <li>
-              <h3 className="font-semibold">Public sources only</h3>
-              <p className="mt-1 text-muted-foreground">Every check reads data anyone could find. Nothing behind a login, no private content.</p>
+              <h3 className="font-semibold">{t('Public sources only')}</h3>
+              <p className="mt-1 text-muted-foreground">{t('Every check reads data anyone could find. Nothing behind a login, no private content.')}</p>
             </li>
             <li>
-              <h3 className="font-semibold">Exposure, not intrusion</h3>
-              <p className="mt-1 text-muted-foreground">Breach checks show where an address has turned up in known incidents, so you can act on it.</p>
+              <h3 className="font-semibold">{t('Exposure, not intrusion')}</h3>
+              <p className="mt-1 text-muted-foreground">{t('Breach checks show where an address has turned up in known incidents, so you can act on it.')}</p>
             </li>
             <li>
-              <h3 className="font-semibold">You confirm your purpose</h3>
-              <p className="mt-1 text-muted-foreground">Each scan asks you to confirm a legitimate reason before it runs.</p>
+              <h3 className="font-semibold">{t('You confirm your purpose')}</h3>
+              <p className="mt-1 text-muted-foreground">{t('Each scan asks you to confirm a legitimate reason before it runs.')}</p>
             </li>
           </Reveal>
         </div>
       </section>
 
+      <PricingSection />
+
       {/* Closing CTA */}
       <section className="mx-auto max-w-7xl px-4 py-24 md:px-8">
         <Reveal className="flex flex-col items-start justify-between gap-8 rounded-2xl bg-primary px-8 py-12 text-primary-foreground md:flex-row md:items-center md:px-12">
           <div>
-            <h2 className="font-display text-3xl font-bold md:text-4xl">Run your first trace</h2>
-            <p className="mt-2 opacity-75">Start with your own email. Most people are surprised.</p>
+            <h2 className="font-display text-3xl font-bold md:text-4xl">{t('Run your first trace')}</h2>
+            <p className="mt-2 opacity-75">{t('Start with your own email. Most people are surprised.')}</p>
           </div>
-          <Button size="lg" variant="secondary" onClick={goRegister}>Create a free account</Button>
+          <Button size="lg" variant="secondary" onClick={goRegister}>{t('Create a free account')}</Button>
         </Reveal>
       </section>
 
       <footer className="border-t">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground md:px-8">
-          <span>OSIG — open source intelligence gathering</span>
-          <span>Public data only</span>
+          <span>{t('OSIG — open source intelligence gathering')}</span>
+          <span>{t('Public data only')}</span>
         </div>
       </footer>
     </div>

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 import type { GraphNode, InvestigationPin, ScanType, TargetType } from '@/types';
 
 /** What a node can be scanned as, if anything */
@@ -48,6 +49,7 @@ export function PivotAction({ node, parentScanId }: { node: GraphNode; parentSca
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
+  const t = useT();
   const queryClient = useQueryClient();
   if (!target || node.kind === 'target') return null;
 
@@ -60,10 +62,10 @@ export function PivotAction({ node, parentScanId }: { node: GraphNode; parentSca
       queryClient.invalidateQueries({ queryKey: ['scans'] });
       queryClient.invalidateQueries({ queryKey: ['investigations'] });
       queryClient.invalidateQueries({ queryKey: ['quotaStatus'] });
-      toast({ title: `Scanning ${target.value}`, description: 'Added to this investigation.' });
-      window.location.hash = `#/scan?id=${scan.id}`;
+      toast({ title: t('Scanning {value}', { value: target.value }), description: t('Added to this investigation.') });
+      window.location.assign(`#/scan?id=${scan.id}`);
     } catch (e) {
-      toast({ variant: 'destructive', title: 'The scan didn’t start', description: e instanceof Error ? e.message : undefined });
+      toast({ variant: 'destructive', title: t('The scan didn’t start'), description: e instanceof Error ? e.message : undefined });
     } finally {
       setBusy(false);
     }
@@ -73,19 +75,19 @@ export function PivotAction({ node, parentScanId }: { node: GraphNode; parentSca
     return (
       <Button size="sm" onClick={() => setOpen(true)}>
         <MagnifyingGlassIcon className="mr-1.5 h-4 w-4" />
-        Scan this {target.type}
+        {t('Scan this {type}', { type: t(target.type) })}
       </Button>
     );
   }
   return (
     <div className="w-full rounded-lg border bg-background p-3">
       <p className="text-sm">
-        Scan <span className="font-mono">{target.value}</span> as a {target.type}? It joins this investigation.
+        {t('Scan {value} as a {type}? It joins this investigation.', { value: target.value, type: t(target.type) })}
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button size="sm" disabled={busy} onClick={() => start('quick')}>Quick scan</Button>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => start('deep')}>Deep scan</Button>
-        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
+        <Button size="sm" disabled={busy} onClick={() => start('quick')}>{t('Quick scan')}</Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => start('deep')}>{t('Deep scan')}</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => setOpen(false)}>{t('Cancel')}</Button>
       </div>
     </div>
   );
@@ -96,6 +98,7 @@ export function PinAction({ node, investigationId, pins }: { node: GraphNode; in
   const [note, setNote] = useState(existing?.note ?? '');
   const [editing, setEditing] = useState(false);
   const { toast } = useToast();
+  const t = useT();
   const queryClient = useQueryClient();
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['investigation', investigationId] });
@@ -107,25 +110,25 @@ export function PinAction({ node, investigationId, pins }: { node: GraphNode; in
       await api.pinEntity(investigationId, { entityId: node.id, kind: node.kind, label: node.label, note: note || undefined });
       setEditing(false);
       refresh();
-      toast({ title: existing ? 'Pin updated' : 'Pinned' });
+      toast({ title: existing ? t('Pin updated') : t('Pinned') });
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Not pinned', description: e instanceof Error ? e.message : undefined });
+      toast({ variant: 'destructive', title: t('Not pinned'), description: e instanceof Error ? e.message : undefined });
     }
   };
   const unpin = async () => {
     if (!existing) return;
     await api.unpinEntity(investigationId, existing.id);
     refresh();
-    toast({ title: 'Unpinned' });
+    toast({ title: t('Unpinned') });
   };
 
   if (editing) {
     return (
       <div className="w-full space-y-2">
-        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why this matters (optional)" rows={3} className="bg-background text-sm" />
+        <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('Why this matters (optional)')} rows={3} className="bg-background text-sm" />
         <div className="flex gap-2">
-          <Button size="sm" onClick={save}>{existing ? 'Save note' : 'Pin'}</Button>
-          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button size="sm" onClick={save}>{existing ? t('Save note') : t('Pin')}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>{t('Cancel')}</Button>
         </div>
       </div>
     );
@@ -133,13 +136,13 @@ export function PinAction({ node, investigationId, pins }: { node: GraphNode; in
   return existing ? (
     <>
       <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-        <BookmarkIcon className="mr-1.5 h-4 w-4" /> Edit note
+        <BookmarkIcon className="mr-1.5 h-4 w-4" /> {t('Edit note')}
       </Button>
-      <Button size="sm" variant="ghost" onClick={unpin}>Unpin</Button>
+      <Button size="sm" variant="ghost" onClick={unpin}>{t('Unpin')}</Button>
     </>
   ) : (
     <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-      <BookmarkIcon className="mr-1.5 h-4 w-4" /> Pin
+      <BookmarkIcon className="mr-1.5 h-4 w-4" /> {t('Pin')}
     </Button>
   );
 }

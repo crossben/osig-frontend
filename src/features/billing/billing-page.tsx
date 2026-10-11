@@ -1,0 +1,406 @@
+'use client';
+
+// Billing: current plan and usage, plan comparison, buying or renewing a
+// self-serve plan through Yoon, the return from checkout, and payment history.
+
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PageHeader } from '@/components/layout/page-header';
+import { useToast } from '@/hooks/use-toast';
+import { useAuthStore } from '@/store';
+import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useLocale, useT } from '@/lib/i18n';
+import type { BillingMe, BillingPeriod, BillingPlan, BillingPlans, Payment, PaymentStatus } from '@/types';
+import { CONTACT_EMAIL, PlanComparison, UNLIMITED, useMoney } from './plan-table';
+
+const PERIODS: { value: BillingPeriod; label: string }[] = [
+  { value: 'month', label: 'Monthly' },
+  { value: 'quarter', label: '3 months' },
+  { value: 'half', label: '6 months' },
+  { value: 'year', label: 'Yearly' },
+];
+const PERIOD_LABEL: Record<BillingPeriod, string> = { month: 'Monthly', quarter: '3 months', half: '6 months', year: 'Yearly' };
+
+/** Country sent for "Elsewhere": any non-XOF country gets card payment in USD */
+const ELSEWHERE = 'US';
+
+const POLL_MS = 2000;
+const POLL_LIMIT_MS = 60_000;
+
+const DAY = 86_400_000;
+
+function readRef(): string | null {
+  if (typeof window === 'undefined') return null;
+  const q = window.location.hash.split('?')[1];
+  return q ? new URLSearchParams(q).get('ref') : null;
+}
+
+function useCountryName() {
+  const locale = useLocale();
+  return useMemo(() => {
+    let names: Intl.DisplayNames | null = null;
+    try {
+      names = new Intl.DisplayNames([locale], { type: 'region' });
+    } catch {
+      names = null;
+    }
+    return (code: string) => names?.of(code) ?? code;
+  }, [locale]);
+}
+
+export function BillingPage() {
+  const t = useT();
+  const plansQ = useQuery({ queryKey: ['billing', 'plans'], queryFn: () => api.getBillingPlans() });
+  const meQ = useQuery({ queryKey: ['billing', 'me'], queryFn: () => api.getBillingMe() });
+  const [ref, setRef] = useState<string | null>(readRef);
+
+  return (
+    <div className="w-full min-w-0">
+      <PageHeader title={t('Billing')} description={t('Your plan, what it allows, and your payments.')} />
+
+      {ref && <PaymentReturn reference={ref} onDone={() => setRef(null)} />}
+
+      {meQ.isLoading || plansQ.isLoading ? (
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      ) : meQ.error || plansQ.error || !meQ.data || !plansQ.data ? (
+        <p className="rounded-2xl border bg-card p-6 text-sm text-destructive">
+          {t('Billing couldn’t be loaded. Reload the page to try again.')}
+        </p>
+      ) : (
+        <>
+          <CurrentPlan me={meQ.data} plans={plansQ.data} />
+          <Plans me={meQ.data} plans={plansQ.data} />
+          <History payments={meQ.data.payments} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Return from checkout ──────────────────────────────
+function PaymentReturn({ reference, onDone }: { reference: string; onDone: () => void }) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+  const [started] = useState(() => Date.now());
+  const [timedOut, setTimedOut] = useState(false);
+
+  const { data, error } = useQuery({
+    queryKey: ['billing', 'payment', reference],
+    queryFn: () => api.getPayment(reference),
+    refetchInterval: (q) => (q.state.data?.status === 'pending' && !timedOut ? POLL_MS : false),
+  });
+  const status: PaymentStatus | undefined = data?.status;
+
+  useEffect(() => {
+    if (status !== 'pending') return;
+    const id = setTimeout(() => setTimedOut(true), Math.max(0, POLL_LIMIT_MS - (Date.now() - started)));
+    return () => clearTimeout(id);
+  }, [status, started]);
+
+  // Settled: refresh what the plan changes and drop ?ref from the address
+  useEffect(() => {
+    if (!status || status === 'pending') return;
+    window.history.replaceState(null, '', '#/billing');
+    if (status === 'paid') {
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['quotaStatus'] });
+      api.getCurrentUser().then(setUser).catch(() => {});
+    }
+  }, [status, queryClient, setUser]);
+
+  const tryAgain = () => {
+    onDone();
+    document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  let tone = 'border-trace/50';
+  let icon = <ClockIcon className="h-6 w-6 animate-pulse text-trace" />;
+  let title = t('Waiting for the payment to be confirmed…');
+  let body = t('This usually takes a few seconds. You can leave this page; the plan starts as soon as the payment is confirmed.');
+  let action: React.ReactNode = null;
+
+  if (error) {
+    tone = 'border-destructive/50';
+    icon = <ExclamationTriangleIcon className="h-6 w-6 text-destructive" />;
+    title = t('We couldn’t find this payment');
+    body = t('Check your payment history below. If you were charged and nothing shows up, contact us with reference {ref}.', { ref: reference });
+    action = <Button variant="outline" onClick={onDone}>{t('Dismiss')}</Button>;
+  } else if (status === 'paid') {
+    tone = 'border-success/60';
+    icon = <CheckCircleIcon className="h-6 w-6 text-success" />;
+    title = t('Payment received. {plan} is active.', { plan: t(data!.plan === 'pro' ? 'Pro' : data!.plan === 'enterprise' ? 'Enterprise' : 'Free') });
+    body = t('Your plan and limits below are up to date.');
+    action = <Button variant="outline" onClick={onDone}>{t('Dismiss')}</Button>;
+  } else if (status === 'failed' || status === 'expired') {
+    tone = 'border-destructive/50';
+    icon = <ExclamationTriangleIcon className="h-6 w-6 text-destructive" />;
+    title = status === 'failed' ? t('The payment didn’t go through') : t('The payment page expired');
+    body = status === 'failed'
+      ? t('Nothing was charged. Try again, or pick another payment method on the payment page.')
+      : t('Nothing was charged. Start a new payment to try again.');
+    action = <Button onClick={tryAgain}>{t('Try again')}</Button>;
+  } else if (timedOut) {
+    body = t('This is taking longer than usual. Reload the page in a minute; if the payment went through, your plan will show it.');
+    action = <Button variant="outline" onClick={() => window.location.reload()}>{t('Reload')}</Button>;
+  }
+
+  return (
+    <section role="status" aria-live="polite" className={cn('mb-6 flex flex-col gap-4 rounded-2xl border-2 bg-card p-5 sm:flex-row sm:items-center', tone)}>
+      <div className="flex flex-1 items-start gap-3">
+        <span className="mt-0.5 shrink-0">{icon}</span>
+        <div>
+          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+        </div>
+      </div>
+      {action}
+    </section>
+  );
+}
+
+// ── Current plan ──────────────────────────────────────
+function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const t = useT();
+  const unlimited = limit >= UNLIMITED;
+  const pct = unlimited || limit <= 0 ? 0 : Math.min(100, (used / limit) * 100);
+  const full = !unlimited && used >= limit;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-semibold tabular-nums">
+          {unlimited ? t('{used} of unlimited', { used }) : limit <= 0 ? t('Not included') : t('{used} of {limit}', { used, limit })}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+        <div className={cn('h-full rounded-full', full ? 'bg-destructive' : 'bg-trace')} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CurrentPlan({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
+  const t = useT();
+  const locale = useLocale();
+  const date = (d: Date) => d.toLocaleDateString(locale, { dateStyle: 'long' });
+  const planName = (slug: string | null) => t(plans.plans.find((p) => p.slug === slug)?.name ?? slug ?? '');
+
+  const expires = me.expiresAt ? new Date(me.expiresAt) : null;
+  const [now] = useState(() => Date.now());
+  const expired = expires ? expires.getTime() < now : false;
+  const graceEnd = expires ? new Date(expires.getTime() + me.graceDays * DAY) : null;
+
+  let term: string;
+  if (me.plan === 'free') term = t('Free plan, no end date.');
+  else if (!expires) term = t('No end date.');
+  else if (expired) term = t('Ended on {date}.', { date: date(expires) });
+  else term = t('Ends on {date}.', { date: date(expires) });
+
+  return (
+    <section className="grid gap-6 rounded-2xl border bg-card p-6 md:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <div className="min-w-0">
+        <p className="text-sm text-muted-foreground">{t('Current plan')}</p>
+        <h2 className="mt-1 font-display text-4xl font-bold">{planName(me.plan)}</h2>
+        <p className="mt-2">{term}</p>
+        {me.source === 'comp' && me.plan !== 'free' && (
+          <p className="mt-1 text-sm text-muted-foreground">{t('Granted by an administrator.')}</p>
+        )}
+        {expired && graceEnd && graceEnd.getTime() > now && (
+          <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
+            {t('Your limits stay in place until {date}. Renew before then to keep them.', { date: date(graceEnd) })}
+          </p>
+        )}
+        {me.pendingPlan && (
+          <p className="mt-3 rounded-lg border bg-background px-3 py-2 text-sm">
+            {me.pendingPlanDays
+              ? t('{plan} ({days} days) starts when your current plan ends.', { plan: planName(me.pendingPlan), days: me.pendingPlanDays })
+              : t('{plan} starts when your current plan ends.', { plan: planName(me.pendingPlan) })}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0 space-y-5">
+        <Meter label={t('Scans today')} used={me.usage.scansToday} limit={me.usage.dailyScans} />
+        <Meter label={t('Watches')} used={me.usage.watches} limit={me.limits.watches} />
+        <Meter label={t('API keys')} used={me.usage.apiKeys} limit={me.limits.apiKeys} />
+        <p className="text-xs text-muted-foreground">{t('The daily scan count resets at midnight UTC.')}</p>
+      </div>
+    </section>
+  );
+}
+
+// ── Plans and checkout ────────────────────────────────
+function Plans({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
+  const t = useT();
+  const countryName = useCountryName();
+  const money = useMoney();
+  const { toast } = useToast();
+  const emailVerified = useAuthStore((s) => s.user?.emailVerified) !== false;
+
+  const buyable = plans.plans.filter((p) => p.selfServe && Object.keys(p.prices).length > 0);
+  const [planSlug, setPlanSlug] = useState(buyable[0]?.slug);
+  const plan = buyable.find((p) => p.slug === planSlug) ?? buyable[0];
+  const [period, setPeriod] = useState<BillingPeriod>('month');
+  const [country, setCountry] = useState('SN');
+  const currency = plans.xofCountries.includes(country) ? 'XOF' : 'USD';
+  const prices = plan?.prices[currency];
+
+  const countries = useMemo(
+    () => [...plans.xofCountries].sort((a, b) => countryName(a).localeCompare(countryName(b))),
+    [plans.xofCountries, countryName],
+  );
+
+  const checkout = useMutation({
+    mutationFn: () => api.createCheckout(plan!.slug, period, country),
+    onSuccess: (res) => window.location.assign(res.checkoutUrl),
+    onError: (e: Error) => toast({ variant: 'destructive', title: t('The payment couldn’t start'), description: e.message }),
+  });
+
+  const current = plans.plans.find((p) => p.slug === me.plan);
+  const lower = plan && current && plan.rank < current.rank && me.expiresAt;
+  const same = plan && plan.slug === me.plan && me.expiresAt;
+
+  const footer = (p: BillingPlan) => {
+    if (p.slug === 'free') return null;
+    if (!p.selfServe) {
+      return (
+        <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('OSIG Enterprise')}`} className="text-sm font-medium text-trace underline-offset-4 hover:underline">
+          {t('Contact us to set it up')}
+        </a>
+      );
+    }
+    if (!plans.enabled) return null;
+    return (
+      <Button size="sm" variant={p.slug === plan?.slug ? 'default' : 'outline'}
+        onClick={() => { setPlanSlug(p.slug); document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' }); }}>
+        {p.slug === me.plan ? t('Renew {plan}', { plan: t(p.name) }) : t('Choose {plan}', { plan: t(p.name) })}
+      </Button>
+    );
+  };
+
+  return (
+    <>
+      <section className="mt-10">
+        <h2 className="font-display text-2xl font-semibold">{t('Plans')}</h2>
+        <p className="mb-5 mt-1 text-sm text-muted-foreground">{t('Prices shown for {country}.', { country: currency === 'XOF' ? countryName(country) : t('payment by card') })}</p>
+        <PlanComparison plans={plans.plans} currency={currency} currentPlan={me.plan} footer={footer} />
+      </section>
+
+      {plan && prices && (
+        <section id="buy" className="mt-10 scroll-mt-20 rounded-2xl border bg-card p-6 md:p-8">
+          <h2 className="font-display text-2xl font-semibold">
+            {same ? t('Renew {plan}', { plan: t(plan.name) }) : t('Buy {plan}', { plan: t(plan.name) })}
+          </h2>
+
+          {!plans.enabled ? (
+            <p className="mt-3 text-muted-foreground">
+              {t('Online payment isn’t available yet. To upgrade now, write to {email}.', { email: CONTACT_EMAIL })}
+            </p>
+          ) : (
+            <>
+              <fieldset className="mt-6">
+                <legend className="text-sm font-medium">{t('How long')}</legend>
+                <div role="radiogroup" className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {PERIODS.map(({ value, label }) => {
+                    const active = period === value;
+                    const twoFree = value === 'year' && prices.year === prices.month * 10;
+                    return (
+                      <button key={value} type="button" role="radio" aria-checked={active} onClick={() => setPeriod(value)}
+                        className={cn('rounded-xl border bg-background p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-trace',
+                          active ? 'border-trace ring-1 ring-trace' : 'hover:border-trace/60')}>
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="font-semibold">{t(label)}</span>
+                          {twoFree && <span className="text-xs font-medium text-trace">{t('2 months free')}</span>}
+                        </span>
+                        <span className="mt-1 block font-display text-xl font-bold tabular-nums">{money(prices[value], currency)}</span>
+                        <span className="block text-xs text-muted-foreground">{t('{n} days', { n: plans.periods[value] })}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <div className="mt-6 max-w-sm">
+                <Label htmlFor="billing-country" className="text-sm font-medium">{t('Where you pay from')}</Label>
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger id="billing-country" className="mt-2 w-full bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {countries.map((c) => (
+                      <SelectItem key={c} value={c}>{t('{country} (mobile money, FCFA)', { country: countryName(c) })}</SelectItem>
+                    ))}
+                    <SelectItem value={ELSEWHERE}>{t('Elsewhere (card, USD)')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <ul className="mt-6 space-y-1.5 text-sm text-muted-foreground">
+                <li>{t('Paying again before your plan ends adds the new time to what you have left.')}</li>
+                <li>{t('Paying for a lower plan while a higher one runs queues it to start when the higher one ends.')}</li>
+                {lower && <li className="text-foreground">{t('{plan} will start when your current plan ends.', { plan: t(plan.name) })}</li>}
+              </ul>
+
+              <div className="mt-6 flex flex-col gap-3 border-t pt-6 sm:flex-row sm:items-center">
+                <Button size="lg" disabled={checkout.isPending || !emailVerified} onClick={() => checkout.mutate()}>
+                  {checkout.isPending ? t('Opening the payment page…') : t('Pay {amount}', { amount: money(prices[period], currency) })}
+                </Button>
+                <p className="text-sm text-muted-foreground">
+                  {emailVerified
+                    ? t('You’ll finish on our payment partner’s page, then come back here.')
+                    : t('Confirm your email first: open the link we sent you, then come back to pay.')}
+                </p>
+              </div>
+            </>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
+// ── Payment history ───────────────────────────────────
+const STATUS: Record<PaymentStatus, { label: string; cls: string }> = {
+  paid: { label: 'Paid', cls: 'text-success' },
+  pending: { label: 'Waiting', cls: 'text-muted-foreground' },
+  failed: { label: 'Failed', cls: 'text-destructive' },
+  expired: { label: 'Expired', cls: 'text-muted-foreground' },
+};
+
+function History({ payments }: { payments: Payment[] }) {
+  const t = useT();
+  const locale = useLocale();
+  const money = useMoney();
+  const th = 'whitespace-nowrap border-b px-4 py-3 text-xs font-medium text-muted-foreground';
+  const td = 'whitespace-nowrap px-4 py-2.5';
+  return (
+    <section className="mt-10">
+      <h2 className="mb-4 font-display text-2xl font-semibold">{t('Payments')}</h2>
+      <div className="max-w-full overflow-x-auto rounded-2xl border bg-card" data-lenis-prevent>
+        <table className="w-full min-w-max text-left text-sm">
+          <thead>
+            <tr>{['Date', 'Plan', 'Period', 'Amount', 'Method', 'Status'].map((h) => <th key={h} className={th}>{t(h)}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y">
+            {!payments.length ? (
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">{t('No payments yet.')}</td></tr>
+            ) : payments.map((p) => (
+              <tr key={p.reference} title={p.reference}>
+                <td className={`${td} text-muted-foreground`}>{new Date(p.paidAt ?? p.createdAt).toLocaleDateString(locale, { dateStyle: 'medium' })}</td>
+                <td className={td}>{t(p.plan === 'pro' ? 'Pro' : p.plan === 'enterprise' ? 'Enterprise' : 'Free')}</td>
+                <td className={td}>{t(PERIOD_LABEL[p.period] ?? p.period)}</td>
+                <td className={`${td} tabular-nums`}>{money(p.amount, p.currency)}</td>
+                <td className={`${td} text-muted-foreground`}>{p.method ?? '—'}</td>
+                <td className={cn(td, STATUS[p.status]?.cls)}>{t(STATUS[p.status]?.label ?? p.status)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

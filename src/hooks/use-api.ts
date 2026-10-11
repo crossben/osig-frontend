@@ -3,7 +3,7 @@
 // ============================================
 
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, isMfaStep } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -23,6 +23,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: (credentials: LoginCredentials) => api.login(credentials.email, credentials.password),
     onSuccess: (data) => {
+      if (isMfaStep(data)) return; // the login page asks for the second factor
       login(data.user, data.tokens);
       toast({
         title: 'Welcome back!',

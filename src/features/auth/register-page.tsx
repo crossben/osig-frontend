@@ -13,10 +13,12 @@ import { useRegister } from '@/hooks/use-api';
 import { useAuthStore } from '@/store';
 import { AuthShell } from './auth-shell';
 import { GoogleSignIn } from './google-button';
+import { useT } from '@/lib/i18n';
 
 export function RegisterPage() {
   const { isAuthenticated } = useAuthStore();
   const registerMutation = useRegister();
+  const t = useT();
   const [formData, setFormData] = useState({
     email: '',
     username: '',
@@ -49,29 +51,29 @@ export function RegisterPage() {
     const newErrors: Record<string, string> = {};
 
     if (!formData.email) {
-      newErrors.email = 'Enter your email.';
+      newErrors.email = t('Enter your email.');
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'That doesn\'t look like an email address.';
+      newErrors.email = t('That doesn\'t look like an email address.');
     }
 
     if (!formData.username) {
-      newErrors.username = 'Choose a username.';
+      newErrors.username = t('Choose a username.');
     } else if (formData.username.length < 3) {
-      newErrors.username = 'Usernames need at least 3 characters.';
+      newErrors.username = t('Usernames need at least 3 characters.');
     }
 
     if (!formData.password) {
-      newErrors.password = 'Choose a password.';
+      newErrors.password = t('Choose a password.');
     } else if (formData.password.length < 8) {
-      newErrors.password = 'Use at least 8 characters.';
+      newErrors.password = t('Use at least 8 characters.');
     }
 
     if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'The passwords don\'t match.';
+      newErrors.confirmPassword = t('The passwords don\'t match.');
     }
 
     if (!formData.agreeTerms) {
-      newErrors.agreeTerms = 'Confirm this to create your account.';
+      newErrors.agreeTerms = t('Confirm this to create your account.');
     }
 
     setErrors(newErrors);
@@ -109,24 +111,24 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Five free scans a day. No card needed."
+      title={t('Create your account')}
+      subtitle={t('Five free scans a day. No card needed.')}
       footer={
         <>
-          Already have an account?{' '}
-          <a href="#/login" className="font-medium text-trace hover:underline">Sign in</a>
+          {t('Already have an account?')}{' '}
+          <a href="#/login" className="font-medium text-trace hover:underline">{t('Sign in')}</a>
         </>
       }
     >
       <GoogleSignIn />
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {field('email', 'Email', { type: 'email', autoComplete: 'email', placeholder: 'you@example.com' })}
+        {field('email', t('Email'), { type: 'email', autoComplete: 'email', placeholder: 'you@example.com' })}
         <div className="grid gap-4 sm:grid-cols-2">
-          {field('username', 'Username', { autoComplete: 'username' })}
-          {field('fullName', 'Full name (optional)', { autoComplete: 'name' })}
+          {field('username', t('Username'), { autoComplete: 'username' })}
+          {field('fullName', t('Full name (optional)'), { autoComplete: 'name' })}
         </div>
-        {field('password', 'Password', { type: 'password', autoComplete: 'new-password' })}
-        {field('confirmPassword', 'Repeat password', { type: 'password', autoComplete: 'new-password' })}
+        {field('password', t('Password'), { type: 'password', autoComplete: 'new-password' })}
+        {field('confirmPassword', t('Repeat password'), { type: 'password', autoComplete: 'new-password' })}
         <div className="flex items-start gap-3 pt-1">
           <Checkbox
             id="agreeTerms"
@@ -137,13 +139,13 @@ export function RegisterPage() {
           />
           <div>
             <Label htmlFor="agreeTerms" className="cursor-pointer text-sm font-normal leading-snug">
-              I&apos;ll only use OSIG for legitimate purposes, on public information.
+              {t('I’ll only use OSIG for legitimate purposes, on public information.')}
             </Label>
             {errors.agreeTerms && <p className="mt-1 text-sm text-destructive">{errors.agreeTerms}</p>}
           </div>
         </div>
         <Button type="submit" size="lg" className="w-full" disabled={registerMutation.isPending}>
-          {registerMutation.isPending ? 'Creating account…' : 'Create account'}
+          {registerMutation.isPending ? t('Creating account…') : t('Create account')}
         </Button>
       </form>
     </AuthShell>

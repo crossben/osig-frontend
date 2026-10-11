@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { CheckIcon } from '@heroicons/react/24/outline';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 interface CopyButtonProps {
   /** Text to copy, or a function producing it at click time */
@@ -20,11 +21,12 @@ interface CopyButtonProps {
 export function CopyButton({ value, label, icon: Icon, className, showLabel }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const t = useT();
 
   useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 1500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
   }, [copied]);
 
   const copy = async () => {
@@ -32,7 +34,7 @@ export function CopyButton({ value, label, icon: Icon, className, showLabel }: C
       await navigator.clipboard.writeText(typeof value === 'function' ? value() : value);
       setCopied(true);
     } catch {
-      toast({ variant: 'destructive', title: 'Couldn’t copy', description: 'Your browser blocked clipboard access.' });
+      toast({ variant: 'destructive', title: t('Couldn’t copy'), description: t('Your browser blocked clipboard access.') });
     }
   };
 
@@ -41,8 +43,8 @@ export function CopyButton({ value, label, icon: Icon, className, showLabel }: C
     <button
       type="button"
       onClick={copy}
-      title={copied ? 'Copied' : label}
-      aria-label={copied ? 'Copied' : label}
+      title={copied ? t('Copied') : label}
+      aria-label={copied ? t('Copied') : label}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-trace',
         showLabel ? 'h-8 px-2.5 text-sm' : 'h-7 w-7 justify-center',
@@ -51,7 +53,7 @@ export function CopyButton({ value, label, icon: Icon, className, showLabel }: C
       )}
     >
       <Shown className="h-4 w-4" />
-      {showLabel && <span>{copied ? 'Copied' : label}</span>}
+      {showLabel && <span>{copied ? t('Copied') : label}</span>}
     </button>
   );
 }

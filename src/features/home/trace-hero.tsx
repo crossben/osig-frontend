@@ -9,6 +9,7 @@ import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { GSAP_EASE, isReducedMotion } from '@/lib/motion';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
 gsap.registerPlugin(useGSAP);
 
@@ -90,6 +91,7 @@ function layout(count: number) {
 }
 
 export function TraceHero() {
+  const t = useT();
   const [type, setType] = useState<TargetType>('email');
   const scope = useRef<HTMLDivElement>(null);
   const trace = TRACES[type];
@@ -122,21 +124,21 @@ export function TraceHero() {
   return (
     <div className="w-full">
       {/* Target type switcher — replays the trace */}
-      <div role="tablist" aria-label="Sample target type" className="flex flex-wrap gap-1.5 mb-4">
-        {ORDER.map((t) => (
+      <div role="tablist" aria-label={t('Sample target type')} className="flex flex-wrap gap-1.5 mb-4">
+        {ORDER.map((k) => (
           <button
-            key={t}
+            key={k}
             role="tab"
-            aria-selected={type === t}
-            onClick={() => setType(t)}
+            aria-selected={type === k}
+            onClick={() => setType(k)}
             className={cn(
               'rounded-full px-3.5 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace',
-              type === t
+              type === k
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-accent'
             )}
           >
-            {TRACES[t].label}
+            {t(TRACES[k].label)}
           </button>
         ))}
       </div>
@@ -144,7 +146,7 @@ export function TraceHero() {
       <div
         ref={scope}
         className="relative w-full aspect-[600/440] rounded-2xl border bg-card/70 paper-grid overflow-hidden"
-        aria-label={`Sample trace: ${trace.target} checked against ${trace.sources.length} public sources`}
+        aria-label={t('Sample trace: {target} checked against {count} public sources', { target: trace.target, count: trace.sources.length })}
         role="img"
       >
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" aria-hidden>
@@ -187,13 +189,13 @@ export function TraceHero() {
                 !source.hit && 'text-muted-foreground border-dashed'
               )}
             >
-              {source.hit ? <span data-trace-hit className="mark">{source.name}</span> : source.name}
+              {source.hit ? <span data-trace-hit className="mark">{t(source.name)}</span> : t(source.name)}
             </span>
           </div>
         ))}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        Highlighted sources returned something in this sample. Dashed ones came back empty.
+        {t('Highlighted sources returned something in this sample. Dashed ones came back empty.')}
       </p>
     </div>
   );

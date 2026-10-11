@@ -18,6 +18,20 @@ export interface User {
   /** False for Google-created accounts until a password is set */
   hasPassword?: boolean;
   googleLinked?: boolean;
+  isSuperuser?: boolean;
+  emailVerified?: boolean;
+  totpEnabled?: boolean;
+  /** Days before scans are deleted automatically; null keeps them */
+  retentionDays?: number | null;
+  notifyEmail?: boolean;
+  webhookUrl?: string | null;
+  language?: 'en' | 'fr';
+}
+
+/** Returned by sign-in instead of tokens when two-factor sign-in is on */
+export interface MfaStep {
+  mfaRequired: true;
+  mfaToken: string;
 }
 
 export interface AuthTokens {
@@ -260,6 +274,8 @@ export interface InvestigationPin {
   createdAt: string;
 }
 
+export type InvestigationRole = 'owner' | 'editor' | 'viewer';
+
 export interface InvestigationSummary {
   id: string;
   name: string;
@@ -267,6 +283,17 @@ export interface InvestigationSummary {
   scanCount: number;
   createdAt: string;
   updatedAt: string;
+  role: InvestigationRole;
+  /** Owner's username when shared with you */
+  owner: string | null;
+}
+
+export interface InvestigationMember {
+  userId: string;
+  email: string;
+  username: string;
+  role: 'viewer' | 'editor';
+  addedAt: string;
 }
 
 export interface Investigation {
@@ -278,6 +305,10 @@ export interface Investigation {
   updatedAt: string;
   scans: Scan[];
   pins: InvestigationPin[];
+  role: InvestigationRole;
+  owner: string | null;
+  /** Only filled for the owner */
+  members: InvestigationMember[];
 }
 
 // ============ Watches ============
@@ -307,4 +338,190 @@ export interface OptionalSource {
   enabled: boolean;
   env: string;
   adds: string;
+}
+
+// ============ Analysis ============
+export interface MapPoint {
+  lat: number;
+  lon: number;
+  labels: string[];
+  sources: string[];
+  scanIds: string[];
+  place: string | null;
+  org: string | null;
+}
+
+export interface TimelineEvent {
+  date: string;
+  title: string;
+  severity: 'info' | 'medium' | 'high' | 'critical';
+  source: string;
+  dataType: string;
+  sourceUrl: string | null;
+  scanId: string;
+  target: string;
+  /** Dates still ahead, e.g. a domain or certificate expiry */
+  future: boolean;
+}
+
+export interface DiffEntity {
+  id: string;
+  kind: string;
+  label: string;
+}
+
+export interface ScanComparison {
+  before: { id: string; targetType: TargetType; targetValue: string; scanType: ScanType; createdAt: string };
+  after: { id: string; targetType: TargetType; targetValue: string; scanType: ScanType; createdAt: string };
+  added: DiffEntity[];
+  removed: DiffEntity[];
+  unchanged: number;
+}
+
+export type ExportFormat = 'stix' | 'misp';
+
+export interface BulkScanResult {
+  investigationId: string;
+  started: number;
+  scanIds: string[];
+  errors: { line: number; error: string }[];
+}
+
+// ============ API keys / admin ============
+export interface ApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  username: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  isActive: boolean;
+  isSuperuser: boolean;
+  emailVerified: boolean;
+  totpEnabled: boolean;
+  googleLinked: boolean;
+  createdAt: string;
+  scanCount: number;
+  lastLogin: string | null;
+}
+
+export interface AdminStats {
+  users: number;
+  users7d: number;
+  scans: number;
+  scans24h: number;
+  scansByStatus: Record<string, number>;
+  scansByType: Record<string, number>;
+  failedLogins24h: number;
+  mailPending: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  action: string;
+  target: string | null;
+  userId: string | null;
+  email: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface MailEntry {
+  id: string;
+  to: string;
+  subject: string;
+  kind: string;
+  sent: boolean;
+  error: string | null;
+  createdAt: string;
+}
+
+// ============ Billing ============
+
+export type PlanSlug = 'free' | 'pro' | 'enterprise';
+export type BillingPeriod = 'month' | 'quarter' | 'half' | 'year';
+export type BillingCurrency = 'XOF' | 'USD';
+export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'expired';
+
+export interface PlanLimits {
+  dailyScans: number;
+  deepScans: boolean;
+  watches: number;
+  minWatchIntervalHours: number;
+  bulkMax: number;
+  exports: boolean;
+  sharing: boolean;
+  apiKeys: number;
+  maxRetentionDays: number | null;
+}
+
+export interface BillingPlan {
+  slug: PlanSlug;
+  name: string;
+  rank: number;
+  selfServe: boolean;
+  /** Minor units: XOF has no decimals, USD is in cents */
+  prices: Partial<Record<BillingCurrency, Record<BillingPeriod, number>>>;
+  limits: PlanLimits;
+  isActive?: boolean;
+}
+
+export interface BillingPlans {
+  plans: BillingPlan[];
+  periods: Record<BillingPeriod, number>;
+  enabled: boolean;
+  xofCountries: string[];
+}
+
+export interface Payment {
+  reference: string;
+  plan: PlanSlug;
+  period: BillingPeriod;
+  amount: number;
+  currency: BillingCurrency;
+  country: string | null;
+  method: string | null;
+  status: PaymentStatus;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminPayment extends Payment {
+  email: string | null;
+  failureReason: string | null;
+}
+
+export interface BillingMe {
+  plan: PlanSlug;
+  planName: string;
+  expiresAt: string | null;
+  source: 'purchase' | 'comp' | null;
+  pendingPlan: PlanSlug | null;
+  pendingPlanDays: number | null;
+  graceDays: number;
+  limits: PlanLimits;
+  usage: { scansToday: number; dailyScans: number; watches: number; apiKeys: number };
+  payments: Payment[];
+}
+
+export interface CheckoutResponse {
+  reference: string;
+  checkoutUrl: string;
+  amount: number;
+  currency: BillingCurrency;
+}
+
+export interface PlanPatch {
+  name?: string;
+  isActive?: boolean;
+  selfServe?: boolean;
+  prices?: BillingPlan['prices'];
+  limits?: Partial<PlanLimits>;
 }

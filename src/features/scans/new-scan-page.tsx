@@ -26,6 +26,9 @@ import { TargetType, ScanType } from '@/types';
 import { cn } from '@/lib/utils';
 import { sourcesFor } from '@/lib/scan-sources';
 import { PageHeader } from '@/components/layout/page-header';
+import { useT } from '@/lib/i18n';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 const targetTypes: { value: TargetType; label: string; icon: React.ComponentType<{ className?: string }>; placeholder: string; description: string }[] = [
   {
@@ -90,59 +93,63 @@ const scanTypes: { value: ScanType; label: string; icon: React.ComponentType<{ c
 ];
 
 export function NewScanPage() {
+  const t = useT();
   const createScanMutation = useCreateScan();
   const { data: quota } = useQuotaStatus();
   const [targetType, setTargetType] = useState<TargetType>('email');
   const [targetValue, setTargetValue] = useState('');
   const [scanType, setScanType] = useState<ScanType>('quick');
+  // Deep scans are a paid feature: shown, but locked with a way to the plans
+  const { data: billing } = useQuery({ queryKey: ['billing', 'me'], queryFn: () => api.getBillingMe(), staleTime: 60_000 });
+  const deepLocked = billing ? !billing.limits.deepScans : false;
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const selectedTarget = targetTypes.find((t) => t.value === targetType);
+  const selectedTarget = targetTypes.find((tt) => tt.value === targetType);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
     if (!targetValue.trim()) {
-      newErrors.targetValue = 'Enter a target to scan.';
+      newErrors.targetValue = t('Enter a target to scan.');
     } else {
       // Basic validation based on target type
       switch (targetType) {
         case 'email':
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetValue)) {
-            newErrors.targetValue = 'That doesn\'t look like an email address.';
+            newErrors.targetValue = t('That doesn\'t look like an email address.');
           }
           break;
         case 'domain':
           if (!/^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*(\.[a-zA-Z]{2,})+$/.test(targetValue)) {
-            newErrors.targetValue = 'Enter a domain like example.com, without https://.';
+            newErrors.targetValue = t('Enter a domain like example.com, without https://.');
           }
           break;
         case 'phone':
           if (!/^\+?[\d\s-()]{7,}$/.test(targetValue)) {
-            newErrors.targetValue = 'Enter digits with the country code, e.g. +1 202 555 0143.';
+            newErrors.targetValue = t('Enter digits with the country code, e.g. +1 202 555 0143.');
           }
           break;
         case 'ip':
           if (!/^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+:[0-9a-fA-F:]*$/.test(targetValue.trim())) {
-            newErrors.targetValue = 'Enter an IPv4 or IPv6 address.';
+            newErrors.targetValue = t('Enter an IPv4 or IPv6 address.');
           }
           break;
         case 'organization':
           if (targetValue.trim().length < 2) {
-            newErrors.targetValue = 'Enter the organization\'s name.';
+            newErrors.targetValue = t('Enter the organization\'s name.');
           }
           break;
         case 'username':
           if (targetValue.length < 2) {
-            newErrors.targetValue = 'Handles need at least 2 characters.';
+            newErrors.targetValue = t('Handles need at least 2 characters.');
           }
           break;
       }
     }
 
     if (!disclaimerAccepted) {
-      newErrors.disclaimerAccepted = 'Confirm your reason before starting the scan.';
+      newErrors.disclaimerAccepted = t('Confirm your reason before starting the scan.');
     }
 
     setErrors(newErrors);
@@ -168,16 +175,17 @@ export function NewScanPage() {
   return (
     <div className="w-full">
       <PageHeader
-        title="New scan"
-        description="Pick a target and OSIG traces it across public sources. Results appear on the scan page as each source answers."
+        title={t('New scan')}
+        description={t('Pick a target and OSIG traces it across public sources. Results appear on the scan page as each source answers.')}
+        actions={<a href="#/bulk" className="text-sm text-trace hover:underline">{t('Scan a list from CSV')}</a>}
       />
 
       {createScanMutation.isError && (
         <Alert variant="destructive" className="mb-6">
           <ExclamationTriangleIcon className="h-4 w-4" />
-          <AlertTitle>The scan didn't start</AlertTitle>
+          <AlertTitle>{t('The scan didn’t start')}</AlertTitle>
           <AlertDescription>
-            {(createScanMutation.error as Error)?.message || 'Try again in a moment.'}
+            {(createScanMutation.error as Error)?.message || t('Try again in a moment.')}
           </AlertDescription>
         </Alert>
       )}
@@ -187,7 +195,7 @@ export function NewScanPage() {
         <form onSubmit={handleSubmit} className="rounded-2xl border bg-card p-6 md:p-8" noValidate>
           {/* Target type */}
           <fieldset>
-            <legend className="text-sm font-medium">What are you looking into?</legend>
+            <legend className="text-sm font-medium">{t('What are you looking into?')}</legend>
             <div role="radiogroup" className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-6">
               {targetTypes.map((type) => {
                 const selected = targetType === type.value;
@@ -210,7 +218,7 @@ export function NewScanPage() {
                     )}
                   >
                     <type.icon className="h-5 w-5 shrink-0" />
-                    <span className="font-medium">{type.label}</span>
+                    <span className="font-medium">{t(type.label)}</span>
                   </button>
                 );
               })}
@@ -220,7 +228,7 @@ export function NewScanPage() {
           {/* Target value — the focal field */}
           <div className="mt-8">
             <Label htmlFor="targetValue" className="text-sm font-medium">
-              {selectedTarget?.label}
+              {selectedTarget && t(selectedTarget.label)}
             </Label>
             <input
               id="targetValue"
@@ -241,37 +249,46 @@ export function NewScanPage() {
               )}
             />
             <p id="targetValue-help" className={cn('mt-2 text-sm', errors.targetValue ? 'text-destructive' : 'text-muted-foreground')}>
-              {errors.targetValue || selectedTarget?.description}
+              {errors.targetValue || (selectedTarget && t(selectedTarget.description))}
             </p>
           </div>
 
           {/* Depth */}
           <fieldset className="mt-8">
-            <legend className="text-sm font-medium">Depth</legend>
+            <legend className="text-sm font-medium">{t('Depth')}</legend>
             <RadioGroup
               value={scanType}
               onValueChange={(value) => setScanType(value as ScanType)}
               className="mt-3 grid gap-2 md:grid-cols-2"
             >
-              {scanTypes.map((type) => (
+              {scanTypes.map((type) => {
+                const locked = type.value === 'deep' && deepLocked;
+                return (
                 <Label
                   key={type.value}
                   htmlFor={`scanType-${type.value}`}
                   className={cn(
                     'flex cursor-pointer items-start gap-3 rounded-xl border bg-background p-4 transition-colors select-none has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-trace',
-                    scanType === type.value ? 'border-trace ring-1 ring-trace' : 'hover:border-trace/60'
+                    locked ? 'cursor-default opacity-80' : scanType === type.value ? 'border-trace ring-1 ring-trace' : 'hover:border-trace/60'
                   )}
                 >
-                  <RadioGroupItem value={type.value} id={`scanType-${type.value}`} className="mt-0.5" />
+                  <RadioGroupItem value={type.value} id={`scanType-${type.value}`} className="mt-0.5" disabled={locked} />
                   <div className="flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-semibold">{type.label}</span>
-                      <span className="text-xs text-muted-foreground">{type.timeEstimate}</span>
+                      <span className="font-semibold">{t(type.label)}</span>
+                      <span className="text-xs text-muted-foreground">{t(type.timeEstimate)}</span>
                     </div>
-                    <p className="mt-1 text-sm font-normal text-muted-foreground">{type.description}</p>
+                    <p className="mt-1 text-sm font-normal text-muted-foreground">{t(type.description)}</p>
+                    {locked && (
+                      <p className="mt-2 text-sm font-normal">
+                        {t('Included with Pro.')}{' '}
+                        <a href="#/billing" className="font-medium text-trace underline-offset-4 hover:underline">{t('See plans')}</a>
+                      </p>
+                    )}
                   </div>
                 </Label>
-              ))}
+                );
+              })}
             </RadioGroup>
           </fieldset>
 
@@ -289,7 +306,7 @@ export function NewScanPage() {
               />
               <div>
                 <Label htmlFor="confirm" className="cursor-pointer text-sm font-normal leading-snug">
-                  I have a legitimate reason to look into this target.
+                  {t('I have a legitimate reason to look into this target.')}
                 </Label>
                 {errors.disclaimerAccepted && (
                   <p className="mt-1 text-sm text-destructive">{errors.disclaimerAccepted}</p>
@@ -297,22 +314,22 @@ export function NewScanPage() {
               </div>
             </div>
             <Button type="submit" size="lg" className="shrink-0" disabled={createScanMutation.isPending || noQuota}>
-              {createScanMutation.isPending ? 'Starting scan…' : 'Start scan'}
+              {createScanMutation.isPending ? t('Starting scan…') : t('Start scan')}
             </Button>
           </div>
           {noQuota && (
             <p className="mt-3 text-right text-sm text-destructive">
-              You've used today's {quota?.dailyLimit} scans. The count resets at midnight UTC.
+              {t('You’ve used today’s {n} scans. The count resets at midnight UTC.', { n: quota?.dailyLimit ?? 0 })}
             </p>
           )}
         </form>
 
         {/* ── What this scan checks ────────────────────── */}
         <aside className="rounded-2xl border bg-card/70 p-6 md:p-8" aria-live="polite">
-          <h2 className="font-display text-xl font-semibold">This scan checks</h2>
+          <h2 className="font-display text-xl font-semibold">{t('This scan checks')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {activeSources.length} of {allSources.length} sources for {selectedTarget?.label.toLowerCase()}
-            {scanType === 'quick' && allSources.length > activeSources.length ? '. Deep adds the rest.' : '.'}
+            {t('{active} of {all} sources for {target}', { active: activeSources.length, all: allSources.length, target: selectedTarget ? t(selectedTarget.label).toLowerCase() : '' })}
+            {scanType === 'quick' && allSources.length > activeSources.length ? t('. Deep adds the rest.') : '.'}
           </p>
           <ul className="relative mt-6 space-y-1 before:absolute before:bottom-3 before:left-[5px] before:top-3 before:w-px before:bg-trace/40">
             {allSources.map((source) => {
@@ -328,10 +345,10 @@ export function NewScanPage() {
                   />
                   <div className="min-w-0">
                     <div className="text-sm font-medium">
-                      {source.name}
-                      {!on && <span className="ml-2 text-xs font-normal text-muted-foreground">deep only</span>}
+                      {t(source.name)}
+                      {!on && <span className="ml-2 text-xs font-normal text-muted-foreground">{t('deep only')}</span>}
                     </div>
-                    <div className="text-sm text-muted-foreground">{source.what}</div>
+                    <div className="text-sm text-muted-foreground">{t(source.what)}</div>
                   </div>
                 </li>
               );

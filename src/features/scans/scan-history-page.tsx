@@ -49,6 +49,7 @@ import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { TargetType, ScanStatus } from '@/types';
 import { cn } from '@/lib/utils';
+import { useT, useLocale } from '@/lib/i18n';
 
 const statusConfig: Record<ScanStatus, { label: string; dot: string }> = {
   pending: { label: 'Queued', dot: 'bg-muted-foreground' },
@@ -70,11 +71,12 @@ const openScan = (id: string) => { window.location.hash = `#/scan?id=${id}`; };
 const goNewScan = () => { window.location.hash = '#/'; };
 
 function StatusLabel({ status, progress }: { status: ScanStatus; progress: number }) {
+  const t = useT();
   const config = statusConfig[status];
   return (
     <span className="inline-flex items-center gap-2 text-sm">
       <span aria-hidden className={cn('h-2 w-2 rounded-full', config.dot)} />
-      {config.label}
+      {t(config.label)}
       {status === 'running' && <span className="text-muted-foreground">{progress}%</span>}
     </span>
   );
@@ -86,6 +88,8 @@ export function ScanHistoryPage() {
     status?: ScanStatus;
     search?: string;
   }>({});
+  const t = useT();
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -102,21 +106,21 @@ export function ScanHistoryPage() {
     try {
       await api.cancelScan(id);
       queryClient.invalidateQueries({ queryKey: ['scans'] });
-      toast({ title: 'Scan cancelled' });
+      toast({ title: t('Scan cancelled') });
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Could not cancel the scan', description: e instanceof Error ? e.message : undefined });
+      toast({ variant: 'destructive', title: t('Could not cancel the scan'), description: e instanceof Error ? e.message : undefined });
     }
   };
 
   return (
     <div className="w-full">
       <PageHeader
-        title="Scan history"
-        description="Every scan you've run. Open one to see its findings, graph and exports."
+        title={t('Scan history')}
+        description={t('Every scan you’ve run. Open one to see its findings, graph and exports.')}
         actions={
           <Button onClick={goNewScan}>
             <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
-            New scan
+            {t('New scan')}
           </Button>
         }
       />
@@ -126,8 +130,8 @@ export function ScanHistoryPage() {
         <div className="relative flex-1">
           <MagnifyingGlassIcon aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            aria-label="Search scans by target"
-            placeholder="Search targets"
+            aria-label={t('Search scans by target')}
+            placeholder={t('Search targets')}
             value={filters.search || ''}
             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             className="w-full bg-card pl-9"
@@ -137,36 +141,36 @@ export function ScanHistoryPage() {
           value={filters.targetType || 'all'}
           onValueChange={(value) => setFilters({ ...filters, targetType: value === 'all' ? undefined : value as TargetType })}
         >
-          <SelectTrigger className="w-full bg-card md:w-[150px]" aria-label="Filter by target type">
+          <SelectTrigger className="w-full bg-card md:w-[150px]" aria-label={t('Filter by target type')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="email">Email</SelectItem>
-            <SelectItem value="username">Username</SelectItem>
-            <SelectItem value="domain">Domain</SelectItem>
-            <SelectItem value="phone">Phone</SelectItem>
-            <SelectItem value="ip">IP address</SelectItem>
-            <SelectItem value="organization">Organization</SelectItem>
+            <SelectItem value="all">{t('All types')}</SelectItem>
+            <SelectItem value="email">{t('Email')}</SelectItem>
+            <SelectItem value="username">{t('Username')}</SelectItem>
+            <SelectItem value="domain">{t('Domain')}</SelectItem>
+            <SelectItem value="phone">{t('Phone')}</SelectItem>
+            <SelectItem value="ip">{t('IP address')}</SelectItem>
+            <SelectItem value="organization">{t('Organization')}</SelectItem>
           </SelectContent>
         </Select>
         <Select
           value={filters.status || 'all'}
           onValueChange={(value) => setFilters({ ...filters, status: value === 'all' ? undefined : value as ScanStatus })}
         >
-          <SelectTrigger className="w-full bg-card md:w-[150px]" aria-label="Filter by status">
+          <SelectTrigger className="w-full bg-card md:w-[150px]" aria-label={t('Filter by status')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Any status</SelectItem>
-            <SelectItem value="pending">Queued</SelectItem>
-            <SelectItem value="running">Running</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="all">{t('Any status')}</SelectItem>
+            <SelectItem value="pending">{t('Queued')}</SelectItem>
+            <SelectItem value="running">{t('Running')}</SelectItem>
+            <SelectItem value="completed">{t('Completed')}</SelectItem>
+            <SelectItem value="failed">{t('Failed')}</SelectItem>
           </SelectContent>
         </Select>
         {hasFilters && (
-          <Button variant="ghost" onClick={() => setFilters({})}>Clear filters</Button>
+          <Button variant="ghost" onClick={() => setFilters({})}>{t('Clear filters')}</Button>
         )}
       </div>
 
@@ -187,26 +191,26 @@ export function ScanHistoryPage() {
         ) : filteredScans.length === 0 ? (
           <div className="flex flex-col items-center px-4 py-16 text-center">
             <h3 className="font-display text-xl font-semibold">
-              {hasFilters ? 'No scans match these filters' : 'No scans yet'}
+              {hasFilters ? t('No scans match these filters') : t('No scans yet')}
             </h3>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
               {hasFilters
-                ? 'Change or clear the filters to see more.'
-                : 'Run a scan on an email, username, domain or phone number and it will show up here.'}
+                ? t('Change or clear the filters to see more.')
+                : t('Run a scan on an email, username, domain or phone number and it will show up here.')}
             </p>
             {hasFilters
-              ? <Button variant="outline" className="mt-5" onClick={() => setFilters({})}>Clear filters</Button>
-              : <Button className="mt-5" onClick={goNewScan}>Start a scan</Button>}
+              ? <Button variant="outline" className="mt-5" onClick={() => setFilters({})}>{t('Clear filters')}</Button>
+              : <Button className="mt-5" onClick={goNewScan}>{t('Start a scan')}</Button>}
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6">Target</TableHead>
-                <TableHead>Depth</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Started</TableHead>
-                <TableHead className="pr-6 text-right"><span className="sr-only">Actions</span></TableHead>
+                <TableHead className="pl-6">{t('Target')}</TableHead>
+                <TableHead>{t('Depth')}</TableHead>
+                <TableHead>{t('Status')}</TableHead>
+                <TableHead>{t('Started')}</TableHead>
+                <TableHead className="pr-6 text-right"><span className="sr-only">{t('Actions')}</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -233,32 +237,32 @@ export function ScanHistoryPage() {
                           >
                             {scan.targetValue}
                           </a>
-                          <div className="text-xs text-muted-foreground">{type.label}</div>
+                          <div className="text-xs text-muted-foreground">{t(type.label)}</div>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="capitalize text-sm">{scan.scanType}</TableCell>
+                    <TableCell className="capitalize text-sm">{t(scan.scanType === 'deep' ? 'Deep' : 'Quick')}</TableCell>
                     <TableCell><StatusLabel status={scan.status} progress={scan.progress} /></TableCell>
                     <TableCell>
-                      <div className="text-sm">{created.toLocaleDateString()}</div>
-                      <div className="text-xs text-muted-foreground">{created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div className="text-sm">{created.toLocaleDateString(locale)}</div>
+                      <div className="text-xs text-muted-foreground">{created.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</div>
                     </TableCell>
                     <TableCell className="pr-6 text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${scan.targetValue}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t('Actions for {target}', { target: scan.targetValue })}>
                             <EllipsisHorizontalIcon className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onSelect={() => openScan(scan.id)}>
                             <EyeIcon className="h-4 w-4 mr-2" />
-                            Open scan
+                            {t('Open scan')}
                           </DropdownMenuItem>
                           {active && (
                             <DropdownMenuItem className="text-destructive" onSelect={() => cancelScan(scan.id)}>
                               <XCircleIcon className="h-4 w-4 mr-2" />
-                              Cancel scan
+                              {t('Cancel scan')}
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
@@ -274,7 +278,7 @@ export function ScanHistoryPage() {
 
       {filteredScans.length > 0 && (
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          {filteredScans.length} of {data?.total || filteredScans.length} scans
+          {t('{n} of {total} scans', { n: filteredScans.length, total: data?.total || filteredScans.length })}
         </p>
       )}
     </div>

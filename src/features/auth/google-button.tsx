@@ -5,6 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { env } from '@/lib/env';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
 
 function GoogleG() {
   return (
@@ -19,6 +20,7 @@ function GoogleG() {
 
 export function GoogleSignIn() {
   const { data } = useQuery({ queryKey: ['authProviders'], queryFn: () => api.getAuthProviders(), staleTime: 5 * 60_000 });
+  const t = useT();
   if (!data?.google) return null;
   return (
     <>
@@ -27,11 +29,11 @@ export function GoogleSignIn() {
         className="flex h-11 w-full items-center justify-center gap-3 rounded-md border bg-card text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-trace"
       >
         <GoogleG />
-        Continue with Google
+        {t('Continue with Google')}
       </a>
       <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground" role="separator">
         <span className="h-px flex-1 bg-border" />
-        or with email
+        {t('or with email')}
         <span className="h-px flex-1 bg-border" />
       </div>
     </>

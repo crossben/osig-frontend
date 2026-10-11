@@ -8,6 +8,8 @@ import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Logo } from '@/components/brand/logo';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { LanguageToggle } from '@/components/language-toggle';
+import { useT } from '@/lib/i18n';
 import { GSAP_EASE, isReducedMotion } from '@/lib/motion';
 
 gsap.registerPlugin(useGSAP);
@@ -58,6 +60,7 @@ export function AuthShell({ title, subtitle, children, footer }: {
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="grid min-h-dvh bg-background lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div className="flex flex-col px-6 py-6 md:px-12">
@@ -65,7 +68,10 @@ export function AuthShell({ title, subtitle, children, footer }: {
           <a href="#/" className="flex items-center gap-2">
             <Logo size="lg" />
           </a>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <LanguageToggle />
+            <ThemeToggle />
+          </div>
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-12">
           <h1 className="font-display text-4xl font-bold">{title}</h1>
@@ -73,7 +79,7 @@ export function AuthShell({ title, subtitle, children, footer }: {
           <div className="mt-8">{children}</div>
           {footer && <div className="mt-6 text-sm text-muted-foreground">{footer}</div>}
         </div>
-        <p className="text-xs text-muted-foreground">OSIG reads public sources only.</p>
+        <p className="text-xs text-muted-foreground">{t('OSIG reads public sources only.')}</p>
       </div>
 
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-[#13233F] p-12 text-[#E6ECF5] lg:flex dark:bg-[#16233B]">
@@ -82,7 +88,7 @@ export function AuthShell({ title, subtitle, children, footer }: {
           <MiniTrace />
         </div>
         <p className="relative max-w-md font-display text-2xl font-semibold leading-snug">
-          One target in, every public source it touches out — each finding linked back to where it was found.
+          {t('One target in, every public source it touches out — each finding linked back to where it was found.')}
         </p>
       </aside>
     </div>
