@@ -168,4 +168,8 @@ export const fr_check: Record<string, string> = {
   'This number is registered in another country.': 'Ce numéro est enregistré dans un autre pays.',
   'The message mentions a local company but the number is from abroad ({c}).': 'Le message cite une entreprise locale mais le numéro vient de l’étranger ({c}).',
   'The message mentions a local company but the number is from abroad.': 'Le message cite une entreprise locale mais le numéro vient de l’étranger.',
+  'Google has confirmed this link is a phishing site that steals logins or money.': 'Google a confirmé que ce lien est un site d’hameçonnage qui vole des identifiants ou de l’argent.',
+  'Google has confirmed this link is dangerous: it can install harmful software.': 'Google a confirmé que ce lien est dangereux : il peut installer un logiciel malveillant.',
+  'This exact link is on a list of links that spread malware.': 'Ce lien précis figure sur une liste de liens qui diffusent des logiciels malveillants.',
+  'This site has been used to spread malware before.': 'Ce site a déjà servi à diffuser des logiciels malveillants.',
 };
