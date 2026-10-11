@@ -351,10 +351,15 @@ function Plans({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
                 </Button>
                 <p className="text-sm text-muted-foreground">
                   {emailVerified
-                    ? t('You’ll finish on our payment partner’s page, then come back here.')
+                    ? t('You’ll finish on the Yoon payment page, then come back here.')
                     : t('Confirm your email first: open the link we sent you, then come back to pay.')}
                 </p>
               </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                {t('Payments run through')}{' '}
+                <a href="https://yoonpay.benhattab.pro" target="_blank" rel="noopener noreferrer" className="font-medium text-trace hover:underline">Yoon</a>
+                {', '}{t('an open-source payment gateway for Wave, Orange Money, Free Money and cards. OSIG never sees your card or wallet details.')}
+              </p>
             </>
           )}
         </section>

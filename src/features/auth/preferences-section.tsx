@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/store';
 import { errorText } from './auth-errors';
 import { useT } from '@/lib/i18n';
+import { usePush } from '@/features/footprint/device';
 
 const RETENTION = [
   { value: 'never', label: 'Never' },
@@ -29,6 +30,9 @@ export function PreferencesSection() {
   const initRetention = user?.retentionDays ? String(user.retentionDays) : 'never';
   const [retention, setRetention] = useState(initRetention);
   const [notifyEmail, setNotifyEmail] = useState(!!user?.notifyEmail);
+  const initDigest = !!(user as { digestEnabled?: boolean } | null)?.digestEnabled;
+  const [digest, setDigest] = useState(initDigest);
+  const push = usePush();
   const [webhookUrl, setWebhookUrl] = useState(user?.webhookUrl ?? '');
   const [language, setLanguage] = useState<'en' | 'fr'>(user?.language ?? 'en');
   const [error, setError] = useState('');
@@ -42,6 +46,7 @@ export function PreferencesSection() {
 
   const dirty = retention !== initRetention
     || notifyEmail !== !!user.notifyEmail
+    || digest !== initDigest
     || webhookUrl.trim() !== (user.webhookUrl ?? '')
     || language !== (user.language ?? 'en');
 
@@ -59,6 +64,7 @@ export function PreferencesSection() {
       const updated = await api.updateProfile({
         retentionDays: retention === 'never' ? null : Number(retention),
         notifyEmail,
+        ...({ digestEnabled: digest } as object),
         webhookUrl: hook || null,
         language,
       });
@@ -106,6 +112,24 @@ export function PreferencesSection() {
           </div>
           <Switch id="notifyEmail" checked={notifyEmail} onCheckedChange={setNotifyEmail} />
         </div>
+
+        <div className="flex items-start justify-between gap-4 rounded-xl border bg-background p-4">
+          <div>
+            <Label htmlFor="digestEnabled">{t('Weekly email')}</Label>
+            <p className="mt-1 text-sm text-muted-foreground">{t('Your protection score and what to do next, once a week.')}</p>
+          </div>
+          <Switch id="digestEnabled" checked={digest} onCheckedChange={setDigest} />
+        </div>
+
+        {push.supported && (
+          <div className="flex items-start justify-between gap-4 rounded-xl border bg-background p-4">
+            <div>
+              <Label htmlFor="pushEnabled">{t('Notifications on this device')}</Label>
+              <p className="mt-1 text-sm text-muted-foreground">{t('A notification here when something new turns up. Changes right away.')}</p>
+            </div>
+            <Switch id="pushEnabled" checked={push.on} disabled={push.busy} onCheckedChange={(v) => push.set(v)} />
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="webhookUrl">{t('Webhook URL')}</Label>

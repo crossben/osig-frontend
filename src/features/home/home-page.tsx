@@ -18,6 +18,19 @@ import { useT } from '@/lib/i18n';
 import { GSAP_EASE, isReducedMotion } from '@/lib/motion';
 import { TraceHero } from './trace-hero';
 import { PricingSection } from './pricing-section';
+import { CHECK_PREFILL_KEY } from '@/features/check/check-page';
+
+// Send the pasted text through sessionStorage, never the URL: messages can be private
+function goCheck(e: React.FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+  const text = String(new FormData(e.currentTarget).get('q') ?? '').trim();
+  try {
+    if (text) sessionStorage.setItem(CHECK_PREFILL_KEY, text.slice(0, 5000));
+  } catch {
+    /* storage blocked: the checker opens empty */
+  }
+  window.location.hash = '#/check';
+}
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -100,6 +113,25 @@ export function HomePage() {
           </div>
         </div>
       </header>
+
+      {/* Scam checker entry point */}
+      <section className="border-b bg-card/70">
+        <form onSubmit={goCheck} className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-5 md:flex-row md:items-center md:gap-5 md:px-8">
+          <label htmlFor="home-check" className="font-display text-lg font-semibold md:shrink-0">
+            {t('Check a suspicious link or message')}
+          </label>
+          <div className="flex min-w-0 flex-1 gap-2">
+            <input
+              id="home-check"
+              name="q"
+              autoComplete="off"
+              placeholder={t('Paste a link, number, email or message')}
+              className="h-11 min-w-0 flex-1 rounded-md border bg-background px-3 text-base focus-visible:outline-2 focus-visible:outline-trace"
+            />
+            <Button type="submit" className="h-11 shrink-0">{t('Check it')}</Button>
+          </div>
+        </form>
+      </section>
 
       {/* Hero */}
       <section className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-20 pt-14 md:px-8 lg:grid-cols-[1fr_1.15fr] lg:pt-20">

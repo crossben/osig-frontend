@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import "@/app/globals.css";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -20,12 +20,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#E9EDF2' },
+    { media: '(prefers-color-scheme: dark)', color: '#0F1A2E' },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "OSIG - Open Source Intelligence Gathering",
   description: "Professional OSINT platform for legitimate intelligence gathering using only public and legally accessible information.",
   keywords: ["OSINT", "intelligence", "security", "investigation", "open source"],
   authors: [{ name: "OSIG Team" }],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  appleWebApp: { capable: true, title: "OSIG", statusBarStyle: "default" },
   icons: {
     icon: "/logo.svg",
     apple: "/apple-touch-icon.png",

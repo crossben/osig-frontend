@@ -145,4 +145,7 @@ export const fr_billing: Record<string, string> = {
   'History kept (days, blank = forever)': 'Historique conservé (jours, vide = toujours)',
   Exports: 'Exports',
   Sharing: 'Partage',
+  'You’ll finish on the Yoon payment page, then come back here.': 'Vous terminerez sur la page de paiement Yoon, puis reviendrez ici.',
+  'Payments run through': 'Les paiements passent par',
+  'an open-source payment gateway for Wave, Orange Money, Free Money and cards. OSIG never sees your card or wallet details.': 'une passerelle de paiement open source pour Wave, Orange Money, Free Money et les cartes. OSIG ne voit jamais vos données de carte ou de portefeuille.',
 };

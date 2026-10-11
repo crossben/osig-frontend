@@ -6,7 +6,8 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { registerServiceWorker } from '@/lib/push';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -20,6 +21,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
+
+  // Installable app + push notifications (sw.js caches nothing private)
+  useEffect(() => {
+    void registerServiceWorker();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

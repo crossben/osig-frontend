@@ -14,6 +14,8 @@ import { fr_reports } from './fr-reports';
 import { fr_admin } from './fr-admin';
 import { fr_common } from './fr-common';
 import { fr_billing } from './fr-billing';
+import { fr_footprint } from './fr-footprint';
+import { fr_check } from './fr-check';
 
 export const fr: Record<string, string> = {
   ...fr_home,
@@ -29,9 +31,13 @@ export const fr: Record<string, string> = {
   ...fr_admin,
   ...fr_common,
   ...fr_billing,
+  ...fr_footprint,
+  ...fr_check,
 
   // Navigation and chrome
   'New scan': 'Nouvelle analyse',
+  'My footprint': 'Mon empreinte',
+  'Check a link': 'Vérifier un lien',
   'Scan history': 'Historique',
   Investigations: 'Enquêtes',
   Watches: 'Surveillances',

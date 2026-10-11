@@ -19,6 +19,8 @@ import {
   FolderIcon,
   EyeIcon,
   ShieldCheckIcon,
+  ExclamationTriangleIcon,
+  Cog6ToothIcon,
   CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/store';
@@ -47,6 +49,8 @@ import { useT } from '@/lib/i18n';
 gsap.registerPlugin(useGSAP);
 
 const navItems = [
+  { label: 'My footprint', href: '/footprint', icon: ShieldCheckIcon },
+  { label: 'Check a link', href: '/check', icon: ExclamationTriangleIcon },
   { label: 'New scan', href: '/', icon: MagnifyingGlassIcon },
   { label: 'Scan history', href: '/history', icon: ClockIcon },
   { label: 'Investigations', href: '/investigation', icon: FolderIcon },
@@ -55,7 +59,7 @@ const navItems = [
   { label: 'Billing', href: '/billing', icon: CreditCardIcon },
   { label: 'Account', href: '/profile', icon: UserCircleIcon },
 ];
-const adminItem = { label: 'Admin', href: '/admin', icon: ShieldCheckIcon };
+const adminItem = { label: 'Admin', href: '/admin', icon: Cog6ToothIcon };
 
 
 function PlanBadge({ plan }: { plan: string }) {

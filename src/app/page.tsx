@@ -28,6 +28,8 @@ import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/password-
 import { BulkScanPage } from '@/features/scans/bulk-scan-page';
 import { ComparePage } from '@/features/scans/compare-page';
 import { AdminPage } from '@/features/admin/admin-page';
+import { CheckPage, SharedCheckPage } from '@/features/check/check-page';
+import { FootprintPage, HouseholdAcceptPage, IdentityVerifyPage } from '@/features/footprint/footprint-page';
 import { BillingPage } from '@/features/billing/billing-page';
 
 // Custom hook for mounting detection without setState in effect
@@ -104,6 +106,10 @@ function AppContent() {
 
   // Links from emails: work whether or not this browser is signed in
   if (path === '/verify-email') return <VerifyEmailPage />;
+  if (path === '/verify-identity') return <IdentityVerifyPage />;
+  // Scam checker: public, signed in or not; shared verdicts at #/c?id=...
+  if (path === '/c') return <SharedCheckPage />;
+  if (path === '/check' && !isAuthenticated) return <CheckPage />;
   if (path === '/reset-password') return <ResetPasswordPage />;
   if (path === '/forgot-password') {
     if (isAuthenticated) return <RedirectHome />;
@@ -141,6 +147,12 @@ function AppContent() {
         return <ComparePage />;
       case '/admin':
         return <AdminPage />;
+      case '/check':
+        return <CheckPage />;
+      case '/footprint':
+        return <FootprintPage />;
+      case '/household/accept':
+        return <HouseholdAcceptPage />;
       case '/billing':
         return <BillingPage />;
       case '/profile':
