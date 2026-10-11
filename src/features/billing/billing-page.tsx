@@ -34,11 +34,32 @@ const POLL_MS = 2000;
 const POLL_LIMIT_MS = 60_000;
 
 const DAY = 86_400_000;
+// Calendar periods (Yoon subscriptions): a month ends on the same day next month
+const PERIOD_LENGTH: Record<BillingPeriod, string> = {
+  month: '1 month', quarter: '3 months', half: '6 months', year: '1 year',
+};
 
-function readRef(): string | null {
+function readParam(name: string): string | null {
   if (typeof window === 'undefined') return null;
   const q = window.location.hash.split('?')[1];
-  return q ? new URLSearchParams(q).get('ref') : null;
+  return q ? new URLSearchParams(q).get(name) : null;
+}
+const readRef = () => readParam('ref');
+
+// What the plan looked like before leaving for Yoon's checkout, to tell when it changed
+const SNAPSHOT_KEY = 'osig-billing-before-checkout';
+type Snapshot = { plan: string; expiresAt: string | null };
+function saveSnapshot(s: Snapshot) {
+  try { sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(s)); } catch { /* private mode */ }
+}
+function takeSnapshot(): Snapshot | null {
+  try {
+    const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+    sessionStorage.removeItem(SNAPSHOT_KEY);
+    return raw ? (JSON.parse(raw) as Snapshot) : null;
+  } catch {
+    return null;
+  }
 }
 
 function useCountryName() {
@@ -59,12 +80,14 @@ export function BillingPage() {
   const plansQ = useQuery({ queryKey: ['billing', 'plans'], queryFn: () => api.getBillingPlans() });
   const meQ = useQuery({ queryKey: ['billing', 'me'], queryFn: () => api.getBillingMe() });
   const [ref, setRef] = useState<string | null>(readRef);
+  const [subscribed, setSubscribed] = useState(() => readParam('subscribed') === '1');
 
   return (
     <div className="w-full min-w-0">
       <PageHeader title={t('Billing')} description={t('Your plan, what it allows, and your payments.')} />
 
       {ref && <PaymentReturn reference={ref} onDone={() => setRef(null)} />}
+      {subscribed && <SubscriptionReturn onDone={() => setSubscribed(false)} />}
 
       {meQ.isLoading || plansQ.isLoading ? (
         <Skeleton className="h-56 w-full rounded-2xl" />
@@ -83,7 +106,71 @@ export function BillingPage() {
   );
 }
 
-// ── Return from checkout ──────────────────────────────
+// ── Return from Yoon's checkout (subscriptions) ───────
+// Access is granted by Yoon's signed webhook; here we only ask OSIG to re-read the
+// subscription from Yoon until the plan or its end date changes.
+function SubscriptionReturn({ onDone }: { onDone: () => void }) {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((s) => s.setUser);
+  const [before] = useState(takeSnapshot);
+  const [started] = useState(() => Date.now());
+  const [state, setState] = useState<'waiting' | 'done' | 'slow'>('waiting');
+  const [planName, setPlanName] = useState('');
+
+  useEffect(() => {
+    window.history.replaceState(null, '', '#/billing');
+    let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      try {
+        const now = await api.syncSubscription();
+        const changed = !before || now.plan !== before.plan || now.expiresAt !== before.expiresAt;
+        if (changed && now.plan !== 'free') {
+          setPlanName(now.plan === 'enterprise' ? 'Enterprise' : 'Pro');
+          setState('done');
+          queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+          queryClient.invalidateQueries({ queryKey: ['quotaStatus'] });
+          api.getCurrentUser().then(setUser).catch(() => {});
+          return;
+        }
+      } catch {
+        /* keep polling: the webhook may still arrive */
+      }
+      if (Date.now() - started > POLL_LIMIT_MS) {
+        setState('slow');
+        queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+        return;
+      }
+      setTimeout(tick, POLL_MS);
+    };
+    void tick();
+    return () => { stop = true; };
+  }, [before, started, queryClient, setUser]);
+
+  const done = state === 'done';
+  return (
+    <div role="status" aria-live="polite"
+      className={cn('mb-6 flex flex-col gap-3 rounded-2xl border bg-card p-5 sm:flex-row sm:items-center', done ? 'border-success/60' : 'border-trace/50')}>
+      {done ? <CheckCircleIcon className="h-6 w-6 shrink-0 text-success" /> : <ClockIcon className={cn('h-6 w-6 shrink-0 text-trace', state === 'waiting' && 'animate-pulse')} />}
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold">
+          {done ? t('Payment received. {plan} is active.', { plan: t(planName) })
+            : state === 'slow' ? t('Your payment is still being confirmed')
+            : t('Waiting for the payment to be confirmed…')}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {done ? t('Your plan and limits below are up to date.')
+            : state === 'slow' ? t('The plan updates by itself as soon as the payment is confirmed. If you didn’t finish paying, choose a plan below to try again.')
+            : t('This usually takes a few seconds. You can leave this page; the plan starts as soon as the payment is confirmed.')}
+        </p>
+      </div>
+      {state !== 'waiting' && <Button variant="outline" onClick={onDone}>{t('Dismiss')}</Button>}
+    </div>
+  );
+}
+
+// ── Return from checkout (one-off payments made before subscriptions) ──
 function PaymentReturn({ reference, onDone }: { reference: string; onDone: () => void }) {
   const t = useT();
   const queryClient = useQueryClient();
@@ -221,6 +308,8 @@ function CurrentPlan({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
           <p className="mt-3 rounded-lg border bg-background px-3 py-2 text-sm">
             {me.pendingPlanDays
               ? t('{plan} ({days} days) starts when your current plan ends.', { plan: planName(me.pendingPlan), days: me.pendingPlanDays })
+              : me.subscription
+              ? t('{plan} starts when your current period ends.', { plan: planName(me.pendingPlan) })
               : t('{plan} starts when your current plan ends.', { plan: planName(me.pendingPlan) })}
           </p>
         )}
@@ -256,9 +345,18 @@ function Plans({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
     [plans.xofCountries, countryName],
   );
 
+  const queryClient = useQueryClient();
   const checkout = useMutation({
-    mutationFn: () => api.createCheckout(plan!.slug, period, country),
-    onSuccess: (res) => window.location.assign(res.checkoutUrl),
+    mutationFn: () => api.subscribe(plan!.slug, period, country),
+    onSuccess: (res) => {
+      if (res.checkoutUrl) {
+        saveSnapshot({ plan: me.plan, expiresAt: me.expiresAt });
+        window.location.assign(res.checkoutUrl);
+        return;
+      }
+      toast({ title: t('Change scheduled'), description: t('Your new plan starts when the current period ends. Nothing to pay now.') });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+    },
     onError: (e: Error) => toast({ variant: 'destructive', title: t('The payment couldn’t start'), description: e.message }),
   });
 
@@ -319,7 +417,7 @@ function Plans({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
                           {twoFree && <span className="text-xs font-medium text-trace">{t('2 months free')}</span>}
                         </span>
                         <span className="mt-1 block font-display text-xl font-bold tabular-nums">{money(prices[value], currency)}</span>
-                        <span className="block text-xs text-muted-foreground">{t('{n} days', { n: plans.periods[value] })}</span>
+                        <span className="block text-xs text-muted-foreground">{t(PERIOD_LENGTH[value])}</span>
                       </button>
                     );
                   })}

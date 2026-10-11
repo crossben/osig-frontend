@@ -506,9 +506,17 @@ export interface BillingMe {
   pendingPlan: PlanSlug | null;
   pendingPlanDays: number | null;
   graceDays: number;
+  /** Renewals, grace and expiry are handled by a Yoon subscription */
+  subscription: boolean;
   limits: PlanLimits;
   usage: { scansToday: number; dailyScans: number; watches: number; apiKeys: number };
   payments: Payment[];
+}
+
+/** Either open Yoon's checkout, or a cheaper plan was scheduled for the period end */
+export interface SubscribeResponse {
+  checkoutUrl?: string;
+  scheduled?: boolean;
 }
 
 export interface CheckoutResponse {

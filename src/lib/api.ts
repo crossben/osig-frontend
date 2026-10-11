@@ -39,6 +39,7 @@ import type {
     BillingMe,
     BillingPeriod,
     CheckoutResponse,
+    SubscribeResponse,
     Payment,
     AdminPayment,
     PlanSlug,
@@ -372,6 +373,13 @@ export const api = {
     async getBillingMe(): Promise<BillingMe> {
         return apiCall('GET', '/billing/me');
     },
+    async subscribe(plan: PlanSlug, period: BillingPeriod, country: string): Promise<SubscribeResponse> {
+        return apiCall('POST', '/billing/subscribe', { plan, period, country });
+    },
+    async syncSubscription(): Promise<{ plan: PlanSlug; expiresAt: string | null; source: string | null; pendingPlan: PlanSlug | null }> {
+        return apiCall('POST', '/billing/subscription/sync');
+    },
+    /** Retired (410): kept for pending one-off payments' history only */
     async createCheckout(plan: PlanSlug, period: BillingPeriod, country: string): Promise<CheckoutResponse> {
         return apiCall('POST', '/billing/checkout', { plan, period, country });
     },

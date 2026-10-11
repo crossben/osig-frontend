@@ -148,4 +148,12 @@ export const fr_billing: Record<string, string> = {
   'You’ll finish on the Yoon payment page, then come back here.': 'Vous terminerez sur la page de paiement Yoon, puis reviendrez ici.',
   'Payments run through': 'Les paiements passent par',
   'an open-source payment gateway for Wave, Orange Money, Free Money and cards. OSIG never sees your card or wallet details.': 'une passerelle de paiement open source pour Wave, Orange Money, Free Money et les cartes. OSIG ne voit jamais vos données de carte ou de portefeuille.',
+  // Subscriptions (Yoon 0.3.0)
+  '1 month': '1 mois',
+  '1 year': '1 an',
+  'Change scheduled': 'Changement programmé',
+  'Your new plan starts when the current period ends. Nothing to pay now.': 'Votre nouveau forfait commence à la fin de la période en cours. Rien à payer maintenant.',
+  '{plan} starts when your current period ends.': '{plan} commence à la fin de votre période en cours.',
+  'Your payment is still being confirmed': 'Votre paiement est encore en cours de confirmation',
+  'The plan updates by itself as soon as the payment is confirmed. If you didn’t finish paying, choose a plan below to try again.': 'Le forfait se met à jour tout seul dès que le paiement est confirmé. Si vous n’avez pas terminé le paiement, choisissez un forfait ci-dessous pour réessayer.',
 };
