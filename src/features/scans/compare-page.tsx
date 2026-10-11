@@ -45,6 +45,7 @@ const KIND_LABEL: Record<string, string> = {
   mailserver: 'Mail servers', email: 'Emails', network: 'Networks', location: 'Locations',
   organization: 'Organizations', service: 'Services', url: 'URLs', account: 'Accounts',
   breach: 'Breaches', port: 'Open ports', phone: 'Phones', person: 'People', lookalike: 'Lookalikes',
+  watchlist: 'Watchlist matches', document: 'Documents', snapshot: 'Homepage snapshots',
 };
 const kindLabel = (k: string) => KIND_LABEL[k] ?? k.charAt(0).toUpperCase() + k.slice(1);
 

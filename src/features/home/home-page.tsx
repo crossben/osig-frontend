@@ -243,7 +243,11 @@ export function HomePage() {
       <footer className="border-t">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-muted-foreground md:px-8">
           <span>{t('OSIG — open source intelligence gathering')}</span>
-          <span>{t('Public data only')}</span>
+          <span className="flex flex-wrap gap-x-4">
+            <span>{t('Public data only')}</span>
+            <a href="#/terms" className="hover:text-foreground">{t('Terms of Use')}</a>
+            <a href="#/privacy" className="hover:text-foreground">{t('Privacy Policy')}</a>
+          </span>
         </div>
       </footer>
     </div>

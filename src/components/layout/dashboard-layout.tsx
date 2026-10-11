@@ -19,6 +19,7 @@ import {
   FolderIcon,
   EyeIcon,
   ShieldCheckIcon,
+  PhotoIcon,
   ExclamationTriangleIcon,
   Cog6ToothIcon,
   CreditCardIcon,
@@ -51,6 +52,7 @@ gsap.registerPlugin(useGSAP);
 const navItems = [
   { label: 'My footprint', href: '/footprint', icon: ShieldCheckIcon },
   { label: 'Check a link', href: '/check', icon: ExclamationTriangleIcon },
+  { label: 'Check a photo', href: '/photo', icon: PhotoIcon },
   { label: 'New scan', href: '/', icon: MagnifyingGlassIcon },
   { label: 'Scan history', href: '/history', icon: ClockIcon },
   { label: 'Investigations', href: '/investigation', icon: FolderIcon },

@@ -140,6 +140,10 @@ export function RegisterPage() {
           <div>
             <Label htmlFor="agreeTerms" className="cursor-pointer text-sm font-normal leading-snug">
               {t('I’ll only use OSIG for legitimate purposes, on public information.')}
+              {' '}{t('I accept the')}{' '}
+              <a href="#/terms" target="_blank" rel="noopener" className="underline underline-offset-2">{t('Terms of Use')}</a>{' '}
+              {t('and the')}{' '}
+              <a href="#/privacy" target="_blank" rel="noopener" className="underline underline-offset-2">{t('Privacy Policy')}</a>.
             </Label>
             {errors.agreeTerms && <p className="mt-1 text-sm text-destructive">{errors.agreeTerms}</p>}
           </div>

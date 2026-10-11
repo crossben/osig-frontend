@@ -16,6 +16,8 @@ import { fr_common } from './fr-common';
 import { fr_billing } from './fr-billing';
 import { fr_footprint } from './fr-footprint';
 import { fr_check } from './fr-check';
+import { fr_photo } from './fr-photo';
+import { fr_legal } from './fr-legal';
 
 export const fr: Record<string, string> = {
   ...fr_home,
@@ -33,11 +35,14 @@ export const fr: Record<string, string> = {
   ...fr_billing,
   ...fr_footprint,
   ...fr_check,
+  ...fr_photo,
+  ...fr_legal,
 
   // Navigation and chrome
   'New scan': 'Nouvelle analyse',
   'My footprint': 'Mon empreinte',
   'Check a link': 'Vérifier un lien',
+  'Check a photo': 'Analyser une photo',
   'Scan history': 'Historique',
   Investigations: 'Enquêtes',
   Watches: 'Surveillances',

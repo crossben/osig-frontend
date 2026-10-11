@@ -1,7 +1,8 @@
 // ============================================
 // What each scan runs, per target type and depth.
-// Mirrors backend/app/osint/*_intel.py (+ google_dork.py for every type) —
-// update both together.
+// Mirrors backend/app/workers/scan_tasks.py _get_core_modules/_get_async_modules
+// (+ google_dork.py for every type) — update both together. Background modules
+// (code_leaks, doc_metadata, darkweb, compliance_intel) run after the core ones.
 // ============================================
 
 import type { ScanType, TargetType } from '@/types';
@@ -25,6 +26,8 @@ export const SCAN_SOURCES: Record<TargetType, ScanSource[]> = {
     { name: 'Holehe', what: 'Sites the address is registered on', deepOnly: true },
     { name: 'EmailRep', what: 'Reputation (rate limited)', deepOnly: true },
     { name: 'Have I Been Pwned', what: 'Breaches, when an API key is set', deepOnly: true },
+    { name: 'GitHub code search', what: 'Leaked secrets next to the address, when a token is set (redacted)' },
+    { name: 'Sanctions & offshore screening', what: 'Names on public profiles vs. sanctions/PEP lists and Offshore Leaks' },
   ],
   username: [
     { name: 'Developer & social APIs', what: 'GitHub, GitLab, Keybase, Mastodon, Bluesky and more' },
@@ -33,6 +36,7 @@ export const SCAN_SOURCES: Record<TargetType, ScanSource[]> = {
     { name: 'More platforms', what: 'Chess.com, Lichess, Steam, SoundCloud, Patreon, Replit', deepOnly: true },
     { name: 'WhatsMyName', what: '~650 sites, each with exists/missing signals', deepOnly: true },
     { name: 'Instaloader', what: 'Public Instagram profile', deepOnly: true },
+    { name: 'Sanctions & offshore screening', what: 'Names on public profiles vs. sanctions/PEP lists and Offshore Leaks' },
   ],
   domain: [
     { name: 'WHOIS', what: 'Registrar, dates and registrant' },
@@ -44,6 +48,13 @@ export const SCAN_SOURCES: Record<TargetType, ScanSource[]> = {
     { name: 'Site hygiene', what: 'security.txt, robots.txt, favicon hash, tech stack' },
     { name: 'Mail security', what: 'MTA-STS, BIMI and DKIM selectors' },
     { name: 'Hudson Rock', what: 'Employee and customer logins in infostealer logs' },
+    { name: 'Homepage snapshot', what: 'Content fingerprint, so watches report homepage changes' },
+    { name: 'AlienVault OTX', what: 'Threat reports and malware, when a key is set' },
+    { name: 'GreyNoise', what: 'Reputation of the domain’s servers' },
+    { name: 'GitHub code search', what: 'Leaked secrets next to the domain, when a token is set (redacted)' },
+    { name: 'Document metadata', what: 'Authors and software in public PDFs and Office files' },
+    { name: 'ransomware.live', what: 'Ransomware leak-site claims, when enabled' },
+    { name: 'Sanctions & offshore screening', what: 'Registrant vs. sanctions/PEP lists and Offshore Leaks' },
     { name: 'Certificate Transparency', what: 'Every certified hostname, live or not', deepOnly: true },
     { name: 'Sublist3r', what: 'Subdomains from search engines', deepOnly: true },
     { name: 'Reverse IP', what: 'Other sites on the same server', deepOnly: true },
@@ -62,12 +73,16 @@ export const SCAN_SOURCES: Record<TargetType, ScanSource[]> = {
     { name: 'IP intelligence', what: 'Network owner, ASN and location' },
     { name: 'Shodan InternetDB', what: 'Open ports, software and known CVEs' },
     { name: 'GreyNoise', what: 'Is it scanning the internet, or a known service' },
+    { name: 'AlienVault OTX', what: 'Threat reports and malware, when a key is set' },
     { name: 'Reverse IP', what: 'Other domains hosted on it', deepOnly: true },
     { name: 'AbuseIPDB', what: 'Abuse reports, when a key is set', deepOnly: true },
   ],
   organization: [
     { name: 'Wikidata', what: 'Website, HQ, founding, parent, executives, accounts' },
     { name: 'GLEIF', what: 'Registered legal entities (LEI)' },
+    { name: 'OpenSanctions', what: 'Sanctions, PEP and crime lists, when a key is set' },
+    { name: 'ICIJ Offshore Leaks', what: 'Offshore entities and officers (possible matches)' },
+    { name: 'ransomware.live', what: 'Ransomware leak-site claims, when enabled' },
     { name: 'OpenCorporates', what: 'Company registers, when a token is set', deepOnly: true },
   ],
 };

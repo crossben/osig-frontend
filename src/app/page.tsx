@@ -29,6 +29,8 @@ import { BulkScanPage } from '@/features/scans/bulk-scan-page';
 import { ComparePage } from '@/features/scans/compare-page';
 import { AdminPage } from '@/features/admin/admin-page';
 import { CheckPage, SharedCheckPage } from '@/features/check/check-page';
+import { PhotoPage } from '@/features/photo/photo-page';
+import { TermsPage, PrivacyPage } from '@/features/legal/legal-pages';
 import { FootprintPage, HouseholdAcceptPage, IdentityVerifyPage } from '@/features/footprint/footprint-page';
 import { BillingPage } from '@/features/billing/billing-page';
 
@@ -105,6 +107,9 @@ function AppContent() {
   }
 
   // Links from emails: work whether or not this browser is signed in
+  // Legal pages: public, signed in or not
+  if (path === '/terms') return <TermsPage />;
+  if (path === '/privacy') return <PrivacyPage />;
   if (path === '/verify-email') return <VerifyEmailPage />;
   if (path === '/verify-identity') return <IdentityVerifyPage />;
   // Scam checker: public, signed in or not; shared verdicts at #/c?id=...
@@ -151,6 +156,8 @@ function AppContent() {
         return <CheckPage />;
       case '/footprint':
         return <FootprintPage />;
+      case '/photo':
+        return <PhotoPage />;
       case '/household/accept':
         return <HouseholdAcceptPage />;
       case '/billing':

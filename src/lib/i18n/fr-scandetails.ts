@@ -111,4 +111,12 @@ export const fr_scandetails: Record<string, string> = {
   'No findings yet. They appear here as sources answer.': 'Aucun résultat pour l’instant. Ils apparaissent ici à mesure que les sources répondent.',
   "This scan didn't return any findings.": 'Cette analyse n’a renvoyé aucun résultat.',
   'Reliability {n}%': 'Fiabilité {n} %',
+  'Possible match: {name}': 'Correspondance possible : {name}',
+  'Screened name: {name}': 'Nom contrôlé : {name}',
+  '{n}% similar': '{n} % de similarité',
+  'A name match only, not a confirmed identity. Check date of birth, country or registration number.': 'Simple correspondance de nom, pas une identité confirmée. Vérifiez la date de naissance, le pays ou le numéro d’immatriculation.',
+  'Possible credential in public code': 'Identifiant possible dans du code public',
+  'Mention in public code': 'Mention dans du code public',
+  'Secrets are never stored: only a redacted preview.': 'Les secrets ne sont jamais conservés : seulement un aperçu masqué.',
+  'not visited': 'non visité',
 };

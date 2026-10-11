@@ -284,6 +284,74 @@ function DetailedResultCard({ result }: { result: any }) {
       );
     }
 
+    if (dataType === 'sanctions_match' || dataType === 'offshore_match') {
+      const score = data.score != null ? Math.round(data.score * 100) : data.similarity != null ? Math.round(data.similarity) : null;
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 font-medium text-destructive">
+            <ShieldExclamationIcon className="h-4 w-4" />
+            <span>{t('Possible match: {name}', { name: data.matched_name })}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t('Screened name: {name}', { name: data.name_queried })}
+            {score != null && ` · ${t('{n}% similar', { n: score })}`}
+            {data.category && ` · ${data.category}`}
+            {data.node_type && ` · ${data.node_type}`}
+          </p>
+          {(data.datasets?.length ?? 0) > 0 && <p className="text-xs">{data.datasets.join(', ')}</p>}
+          <p className="text-xs italic text-muted-foreground">
+            {t('A name match only, not a confirmed identity. Check date of birth, country or registration number.')}
+          </p>
+          {data.attribution && <p className="text-[10px] text-muted-foreground">{data.attribution}</p>}
+        </div>
+      );
+    }
+
+    if (dataType === 'code_leak') {
+      return (
+        <div className="space-y-1">
+          <div className={`flex items-center gap-2 font-medium ${data.likely_credential ? 'text-destructive' : 'text-trace'}`}>
+            <CodeBracketIcon className="h-4 w-4" />
+            <span>{data.likely_credential ? t('Possible credential in public code') : t('Mention in public code')}</span>
+          </div>
+          <a href={data.html_url} target="_blank" rel="noopener noreferrer" className="block truncate font-mono text-xs text-trace hover:underline">
+            {data.repo}/{data.path}
+          </a>
+          {data.preview && <p className="font-mono text-xs">{data.preview}</p>}
+          <p className="text-xs text-muted-foreground">{t('Secrets are never stored: only a redacted preview.')}</p>
+        </div>
+      );
+    }
+
+    if (dataType === 'darkweb_mention') {
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 font-medium text-destructive">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            <span>{data.title}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {[data.attack_date, data.onion_host && `${data.onion_host} (${t('not visited')})`].filter(Boolean).join(' · ')}
+          </p>
+          {data.snippet && <p className="text-xs line-clamp-3">{data.snippet}</p>}
+        </div>
+      );
+    }
+
+    if (dataType === 'document_metadata') {
+      return (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 font-medium">
+            <DocumentTextIcon className="h-4 w-4" />
+            <a href={data.url} target="_blank" rel="noopener noreferrer" className="truncate text-sm text-trace hover:underline">
+              {data.title || String(data.url).split('/').pop()}
+            </a>
+          </div>
+          <KeyValueList data={Object.fromEntries(Object.entries(data).filter(([k]) => !['url', 'title'].includes(k)))} />
+        </div>
+      );
+    }
+
     if (dataType === 'domain_parts') {
       return (
         <div className="space-y-2">

@@ -79,7 +79,11 @@ export function AuthShell({ title, subtitle, children, footer }: {
           <div className="mt-8">{children}</div>
           {footer && <div className="mt-6 text-sm text-muted-foreground">{footer}</div>}
         </div>
-        <p className="text-xs text-muted-foreground">{t('OSIG reads public sources only.')}</p>
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{t('OSIG reads public sources only.')}</span>
+          <a href="#/terms" className="underline-offset-2 hover:underline">{t('Terms')}</a>
+          <a href="#/privacy" className="underline-offset-2 hover:underline">{t('Privacy')}</a>
+        </p>
       </div>
 
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-[#13233F] p-12 text-[#E6ECF5] lg:flex dark:bg-[#16233B]">

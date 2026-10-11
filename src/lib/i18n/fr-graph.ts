@@ -39,6 +39,12 @@ export const fr_graph: Record<string, string> = {
   'Phone': 'Téléphone',
   'Person': 'Personne',
   'Lookalike': 'Domaine similaire',
+  'Watchlist matches': 'Correspondances sur listes de surveillance',
+  'Watchlist match': 'Correspondance sur liste de surveillance',
+  'Documents': 'Documents',
+  'Document': 'Document',
+  'Homepage snapshots': 'Instantanés de la page d’accueil',
+  'Homepage snapshot': 'Instantané de la page d’accueil',
   // ── kind identifiers (pins, watch changes) ──
   'target': 'cible',
   'source': 'source',
@@ -53,6 +59,9 @@ export const fr_graph: Record<string, string> = {
   'port': 'port',
   'person': 'personne',
   'lookalike': 'domaine similaire',
+  'watchlist': 'liste de surveillance',
+  'document': 'document',
+  'snapshot': 'instantané',
   'found': 'trouvé',
 
   // ── Graph canvas ──

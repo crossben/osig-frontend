@@ -57,6 +57,9 @@ import {
   SignalIcon,
   UserCircleIcon,
   XMarkIcon,
+  ShieldExclamationIcon,
+  DocumentTextIcon,
+  CameraIcon,
 } from '@heroicons/react/24/outline';
 import { toPng } from 'html-to-image';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
@@ -89,6 +92,9 @@ const KIND: Record<EntityKind, { label: string; one: string; icon: React.Element
   phone: { label: 'Phones', one: 'Phone', icon: PhoneIcon },
   person: { label: 'People', one: 'Person', icon: UserCircleIcon },
   lookalike: { label: 'Lookalikes', one: 'Lookalike', icon: ExclamationTriangleIcon },
+  watchlist: { label: 'Watchlist matches', one: 'Watchlist match', icon: ShieldExclamationIcon },
+  document: { label: 'Documents', one: 'Document', icon: DocumentTextIcon },
+  snapshot: { label: 'Homepage snapshots', one: 'Homepage snapshot', icon: CameraIcon },
 };
 
 // One hue per kind; fills/borders are mixed from it so it reads in both themes
@@ -112,6 +118,9 @@ const KIND_COLOR: Record<EntityKind, string> = {
   phone: '#84CC16',
   person: '#D946EF',
   lookalike: '#E11D48',
+  watchlist: '#B91C1C',
+  document: '#78716C',
+  snapshot: '#0D9488',
 };
 const kindColor = (kind: EntityKind) => KIND_COLOR[kind] ?? 'var(--trace)';
 

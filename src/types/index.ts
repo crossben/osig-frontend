@@ -178,7 +178,8 @@ export interface ScanDetails {
 export type EntityKind =
   | 'target' | 'source' | 'ip' | 'subdomain' | 'domain' | 'nameserver' | 'mailserver'
   | 'email' | 'network' | 'location' | 'organization' | 'service' | 'url'
-  | 'account' | 'breach' | 'port' | 'phone' | 'person' | 'lookalike';
+  | 'account' | 'breach' | 'port' | 'phone' | 'person' | 'lookalike'
+  | 'watchlist' | 'document' | 'snapshot';
 
 export interface GraphNode {
   id: string;
