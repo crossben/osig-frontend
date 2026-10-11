@@ -165,4 +165,7 @@ export const fr_account: Record<string, string> = {
   'Delete my account': 'Supprimer mon compte',
   'Deletes your data and the account itself, then signs you out.': 'Supprime vos données et le compte lui-même, puis vous déconnecte.',
   'Type your email, {x}, to confirm': 'Saisissez votre e-mail, {x}, pour confirmer',
+  'Country': 'Pays',
+  'Choose your country': 'Choisissez votre pays',
+  'Sets how you pay: mobile money in FCFA countries, card elsewhere.': 'Détermine votre moyen de paiement : mobile money dans les pays FCFA, carte ailleurs.',
 };

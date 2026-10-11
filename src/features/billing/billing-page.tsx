@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,7 +44,6 @@ function readParam(name: string): string | null {
   const q = window.location.hash.split('?')[1];
   return q ? new URLSearchParams(q).get(name) : null;
 }
-const readRef = () => readParam('ref');
 
 // What the plan looked like before leaving for Yoon's checkout, to tell when it changed
 const SNAPSHOT_KEY = 'osig-billing-before-checkout';
@@ -79,14 +78,12 @@ export function BillingPage() {
   const t = useT();
   const plansQ = useQuery({ queryKey: ['billing', 'plans'], queryFn: () => api.getBillingPlans() });
   const meQ = useQuery({ queryKey: ['billing', 'me'], queryFn: () => api.getBillingMe() });
-  const [ref, setRef] = useState<string | null>(readRef);
   const [subscribed, setSubscribed] = useState(() => readParam('subscribed') === '1');
 
   return (
     <div className="w-full min-w-0">
       <PageHeader title={t('Billing')} description={t('Your plan, what it allows, and your payments.')} />
 
-      {ref && <PaymentReturn reference={ref} onDone={() => setRef(null)} />}
       {subscribed && <SubscriptionReturn onDone={() => setSubscribed(false)} />}
 
       {meQ.isLoading || plansQ.isLoading ? (
@@ -170,89 +167,6 @@ function SubscriptionReturn({ onDone }: { onDone: () => void }) {
   );
 }
 
-// ── Return from checkout (one-off payments made before subscriptions) ──
-function PaymentReturn({ reference, onDone }: { reference: string; onDone: () => void }) {
-  const t = useT();
-  const queryClient = useQueryClient();
-  const setUser = useAuthStore((s) => s.setUser);
-  const [started] = useState(() => Date.now());
-  const [timedOut, setTimedOut] = useState(false);
-
-  const { data, error } = useQuery({
-    queryKey: ['billing', 'payment', reference],
-    queryFn: () => api.getPayment(reference),
-    refetchInterval: (q) => (q.state.data?.status === 'pending' && !timedOut ? POLL_MS : false),
-  });
-  const status: PaymentStatus | undefined = data?.status;
-
-  useEffect(() => {
-    if (status !== 'pending') return;
-    const id = setTimeout(() => setTimedOut(true), Math.max(0, POLL_LIMIT_MS - (Date.now() - started)));
-    return () => clearTimeout(id);
-  }, [status, started]);
-
-  // Settled: refresh what the plan changes and drop ?ref from the address
-  useEffect(() => {
-    if (!status || status === 'pending') return;
-    window.history.replaceState(null, '', '#/billing');
-    if (status === 'paid') {
-      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
-      queryClient.invalidateQueries({ queryKey: ['quotaStatus'] });
-      api.getCurrentUser().then(setUser).catch(() => {});
-    }
-  }, [status, queryClient, setUser]);
-
-  const tryAgain = () => {
-    onDone();
-    document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  let tone = 'border-trace/50';
-  let icon = <ClockIcon className="h-6 w-6 animate-pulse text-trace" />;
-  let title = t('Waiting for the payment to be confirmed…');
-  let body = t('This usually takes a few seconds. You can leave this page; the plan starts as soon as the payment is confirmed.');
-  let action: React.ReactNode = null;
-
-  if (error) {
-    tone = 'border-destructive/50';
-    icon = <ExclamationTriangleIcon className="h-6 w-6 text-destructive" />;
-    title = t('We couldn’t find this payment');
-    body = t('Check your payment history below. If you were charged and nothing shows up, contact us with reference {ref}.', { ref: reference });
-    action = <Button variant="outline" onClick={onDone}>{t('Dismiss')}</Button>;
-  } else if (status === 'paid') {
-    tone = 'border-success/60';
-    icon = <CheckCircleIcon className="h-6 w-6 text-success" />;
-    title = t('Payment received. {plan} is active.', { plan: t(data!.plan === 'pro' ? 'Pro' : data!.plan === 'enterprise' ? 'Enterprise' : 'Free') });
-    body = t('Your plan and limits below are up to date.');
-    action = <Button variant="outline" onClick={onDone}>{t('Dismiss')}</Button>;
-  } else if (status === 'failed' || status === 'expired') {
-    tone = 'border-destructive/50';
-    icon = <ExclamationTriangleIcon className="h-6 w-6 text-destructive" />;
-    title = status === 'failed' ? t('The payment didn’t go through') : t('The payment page expired');
-    body = status === 'failed'
-      ? t('Nothing was charged. Try again, or pick another payment method on the payment page.')
-      : t('Nothing was charged. Start a new payment to try again.');
-    action = <Button onClick={tryAgain}>{t('Try again')}</Button>;
-  } else if (timedOut) {
-    body = t('This is taking longer than usual. Reload the page in a minute; if the payment went through, your plan will show it.');
-    action = <Button variant="outline" onClick={() => window.location.reload()}>{t('Reload')}</Button>;
-  }
-
-  return (
-    <section role="status" aria-live="polite" className={cn('mb-6 flex flex-col gap-4 rounded-2xl border-2 bg-card p-5 sm:flex-row sm:items-center', tone)}>
-      <div className="flex flex-1 items-start gap-3">
-        <span className="mt-0.5 shrink-0">{icon}</span>
-        <div>
-          <h2 className="font-display text-lg font-semibold">{title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{body}</p>
-        </div>
-      </div>
-      {action}
-    </section>
-  );
-}
-
-// ── Current plan ──────────────────────────────────────
 function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
   const t = useT();
   const unlimited = limit >= UNLIMITED;
@@ -273,6 +187,43 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
   );
 }
 
+// Stop or restart renewing a Yoon subscription (nothing is ever charged automatically:
+// "renewing" means we send a renewal invoice and reminders at the end of each period).
+function RenewalControls({ me, expires }: { me: BillingMe; expires: Date | null }) {
+  const t = useT();
+  const locale = useLocale();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const done = (title: string) => {
+    toast({ title });
+    queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+  };
+  const fail = (e: Error) => toast({ variant: 'destructive', title: t('That didn’t work'), description: e.message });
+  const cancel = useMutation({ mutationFn: () => api.cancelSubscription(), onSuccess: () => done(t('Renewal stopped')), onError: fail });
+  const resume = useMutation({ mutationFn: () => api.resumeSubscription(), onSuccess: () => done(t('Renewal restarted')), onError: fail });
+  const when = expires ? expires.toLocaleDateString(locale, { dateStyle: 'long' }) : '';
+
+  if (me.cancelAtPeriodEnd) {
+    return (
+      <div className="mt-3 rounded-lg border bg-background px-3 py-2 text-sm">
+        <p>{t('Renewal is off: your plan ends on {date} and you won’t get a renewal invoice.', { date: when })}</p>
+        <Button size="sm" variant="outline" className="mt-2" disabled={resume.isPending} onClick={() => resume.mutate()}>
+          {t('Keep renewing')}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <Button size="sm" variant="ghost" className="mt-3 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+      disabled={cancel.isPending}
+      onClick={() => {
+        if (window.confirm(t('Stop renewing? Your plan keeps running until {date}, then you move to Free. Payments aren’t refunded.', { date: when }))) cancel.mutate();
+      }}>
+      {t('Stop renewing')}
+    </Button>
+  );
+}
+
 function CurrentPlan({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
   const t = useT();
   const locale = useLocale();
@@ -288,6 +239,7 @@ function CurrentPlan({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
   if (me.plan === 'free') term = t('Free plan, no end date.');
   else if (!expires) term = t('No end date.');
   else if (expired) term = t('Ended on {date}.', { date: date(expires) });
+  else if (me.subscription && !me.cancelAtPeriodEnd) term = t('Renew by {date} to keep it.', { date: date(expires) });
   else term = t('Ends on {date}.', { date: date(expires) });
 
   return (
@@ -304,6 +256,7 @@ function CurrentPlan({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
             {t('Your limits stay in place until {date}. Renew before then to keep them.', { date: date(graceEnd) })}
           </p>
         )}
+        {me.subscription && me.plan !== 'free' && <RenewalControls me={me} expires={expires} />}
         {me.pendingPlan && (
           <p className="mt-3 rounded-lg border bg-background px-3 py-2 text-sm">
             {me.pendingPlanDays
@@ -336,7 +289,7 @@ function Plans({ me, plans }: { me: BillingMe; plans: BillingPlans }) {
   const [planSlug, setPlanSlug] = useState(buyable[0]?.slug);
   const plan = buyable.find((p) => p.slug === planSlug) ?? buyable[0];
   const [period, setPeriod] = useState<BillingPeriod>('month');
-  const [country, setCountry] = useState('SN');
+  const [country, setCountry] = useState(me.country || 'SN');
   const currency = plans.xofCountries.includes(country) ? 'XOF' : 'USD';
   const prices = plan?.prices[currency];
 

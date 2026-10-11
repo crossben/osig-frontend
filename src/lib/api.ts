@@ -38,9 +38,7 @@ import type {
     BillingPlans,
     BillingMe,
     BillingPeriod,
-    CheckoutResponse,
     SubscribeResponse,
-    Payment,
     AdminPayment,
     PlanSlug,
     PlanPatch,
@@ -376,15 +374,14 @@ export const api = {
     async subscribe(plan: PlanSlug, period: BillingPeriod, country: string): Promise<SubscribeResponse> {
         return apiCall('POST', '/billing/subscribe', { plan, period, country });
     },
+    async cancelSubscription(atPeriodEnd = true): Promise<{ cancelAtPeriodEnd: boolean }> {
+        return apiCall('POST', '/billing/subscription/cancel', { atPeriodEnd });
+    },
+    async resumeSubscription(): Promise<{ cancelAtPeriodEnd: boolean }> {
+        return apiCall('POST', '/billing/subscription/resume');
+    },
     async syncSubscription(): Promise<{ plan: PlanSlug; expiresAt: string | null; source: string | null; pendingPlan: PlanSlug | null }> {
         return apiCall('POST', '/billing/subscription/sync');
-    },
-    /** Retired (410): kept for pending one-off payments' history only */
-    async createCheckout(plan: PlanSlug, period: BillingPeriod, country: string): Promise<CheckoutResponse> {
-        return apiCall('POST', '/billing/checkout', { plan, period, country });
-    },
-    async getPayment(reference: string): Promise<Payment> {
-        return apiCall('GET', `/billing/payments/${encodeURIComponent(reference)}`);
     },
     async adminGrantPlan(userId: string, plan: PlanSlug, days?: number): Promise<unknown> {
         return apiCall('POST', `/billing/admin/users/${userId}/grant`, days ? { plan, days } : { plan });

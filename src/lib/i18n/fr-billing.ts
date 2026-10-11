@@ -156,4 +156,12 @@ export const fr_billing: Record<string, string> = {
   '{plan} starts when your current period ends.': '{plan} commence à la fin de votre période en cours.',
   'Your payment is still being confirmed': 'Votre paiement est encore en cours de confirmation',
   'The plan updates by itself as soon as the payment is confirmed. If you didn’t finish paying, choose a plan below to try again.': 'Le forfait se met à jour tout seul dès que le paiement est confirmé. Si vous n’avez pas terminé le paiement, choisissez un forfait ci-dessous pour réessayer.',
+  'Renew by {date} to keep it.': 'Renouvelez avant le {date} pour le garder.',
+  'Renewal stopped': 'Renouvellement arrêté',
+  'Renewal restarted': 'Renouvellement réactivé',
+  'That didn’t work': 'Ça n’a pas marché',
+  'Renewal is off: your plan ends on {date} and you won’t get a renewal invoice.': 'Renouvellement désactivé : votre forfait se termine le {date} et vous ne recevrez pas de facture de renouvellement.',
+  'Keep renewing': 'Continuer à renouveler',
+  'Stop renewing? Your plan keeps running until {date}, then you move to Free. Payments aren’t refunded.': 'Arrêter le renouvellement ? Votre forfait continue jusqu’au {date}, puis vous passez au forfait Free. Les paiements ne sont pas remboursés.',
+  'Stop renewing': 'Arrêter le renouvellement',
 };

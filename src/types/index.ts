@@ -26,6 +26,8 @@ export interface User {
   notifyEmail?: boolean;
   webhookUrl?: string | null;
   language?: 'en' | 'fr';
+  /** ISO 3166 alpha-2; used for billing currency */
+  country?: string | null;
 }
 
 /** Returned by sign-in instead of tokens when two-factor sign-in is on */
@@ -508,6 +510,9 @@ export interface BillingMe {
   graceDays: number;
   /** Renewals, grace and expiry are handled by a Yoon subscription */
   subscription: boolean;
+  /** Renewal stopped: the plan ends at expiresAt */
+  cancelAtPeriodEnd: boolean;
+  country: string | null;
   limits: PlanLimits;
   usage: { scansToday: number; dailyScans: number; watches: number; apiKeys: number };
   payments: Payment[];
@@ -517,13 +522,6 @@ export interface BillingMe {
 export interface SubscribeResponse {
   checkoutUrl?: string;
   scheduled?: boolean;
-}
-
-export interface CheckoutResponse {
-  reference: string;
-  checkoutUrl: string;
-  amount: number;
-  currency: BillingCurrency;
 }
 
 export interface PlanPatch {

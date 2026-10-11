@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCountries } from '@/lib/countries';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store';
@@ -35,6 +36,8 @@ export function PreferencesSection() {
   const push = usePush();
   const [webhookUrl, setWebhookUrl] = useState(user?.webhookUrl ?? '');
   const [language, setLanguage] = useState<'en' | 'fr'>(user?.language ?? 'en');
+  const [country, setCountry] = useState(user?.country ?? '');
+  const countries = useCountries();
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   if (!user) return null;
@@ -48,7 +51,8 @@ export function PreferencesSection() {
     || notifyEmail !== !!user.notifyEmail
     || digest !== initDigest
     || webhookUrl.trim() !== (user.webhookUrl ?? '')
-    || language !== (user.language ?? 'en');
+    || language !== (user.language ?? 'en')
+    || country !== (user.country ?? '');
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +71,7 @@ export function PreferencesSection() {
         ...({ digestEnabled: digest } as object),
         webhookUrl: hook || null,
         language,
+        ...(country ? { country } : {}),
       });
       setUser(updated);
       setWebhookUrl(updated.webhookUrl ?? '');
@@ -102,6 +107,18 @@ export function PreferencesSection() {
                 <SelectItem value="fr">Français</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t('Country')}</Label>
+            <Select value={country} onValueChange={setCountry}>
+              <SelectTrigger className="w-full bg-background" aria-label={t('Country')}>
+                <SelectValue placeholder={t('Choose your country')} />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {countries.map((c) => <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('Sets how you pay: mobile money in FCFA countries, card elsewhere.')}</p>
           </div>
         </div>
 
